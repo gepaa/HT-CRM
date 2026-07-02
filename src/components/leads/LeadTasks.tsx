@@ -1,0 +1,182 @@
+import React, { useState } from 'react';
+import { CheckSquare, Plus, Clock, AlertCircle, Sparkles } from 'lucide-react';
+import { isBefore } from 'date-fns';
+import { Button } from '../ui/Button';
+import { Badge, type BadgeVariant } from '../ui/Badge';
+import { formatDate } from '../../lib/formatters';
+import type { Task, TaskPriority } from '../../types/task';
+
+export interface LeadTasksProps {
+  tasks: Task[] | any[];
+  onToggleComplete: (taskId: string) => Promise<void> | void;
+  onCreateTask: () => void;
+  className?: string;
+}
+
+export const LeadTasks: React.FC<LeadTasksProps> = ({
+  tasks = [],
+  onToggleComplete,
+  onCreateTask,
+  className = '',
+}) => {
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const handleToggle = async (taskId: string) => {
+    if (!taskId || togglingId === taskId) return;
+    try {
+      setTogglingId(taskId);
+      await onToggleComplete(taskId);
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const getPriorityVariant = (priority: TaskPriority | string): BadgeVariant => {
+    switch (priority) {
+      case 'urgent':
+        return 'danger';
+      case 'high':
+        return 'warm';
+      case 'normal':
+        return 'info';
+      case 'low':
+      default:
+        return 'default';
+    }
+  };
+
+  return (
+    <div className={`space-y-4 ${className}`}>
+      {/* Header with Add Button */}
+      <div className="flex items-center justify-between pb-2 border-b border-surface-800">
+        <div className="flex items-center gap-2">
+          <CheckSquare className="w-5 h-5 text-brand-400" />
+          <h3 className="text-base font-semibold text-white">Tasks & Action Items</h3>
+          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-surface-800 text-surface-300">
+            {tasks.filter((t) => t.status !== 'completed').length} pending
+          </span>
+        </div>
+        <Button variant="secondary" size="sm" onClick={onCreateTask} className="gap-1.5">
+          <Plus className="w-4 h-4" />
+          <span>New Task</span>
+        </Button>
+      </div>
+
+      {/* Tasks List */}
+      {!tasks || tasks.length === 0 ? (
+        <div className="text-center py-8 px-4 rounded-xl border border-dashed border-surface-800 bg-surface-900/30">
+          <CheckSquare className="w-8 h-8 text-surface-500 mx-auto mb-2 opacity-60" />
+          <p className="text-sm text-surface-400 mb-3">No tasks assigned to this lead yet.</p>
+          <Button variant="primary" size="sm" onClick={onCreateTask}>
+            Create First Task
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {tasks.map((task, idx) => {
+            const isCompleted = task.status === 'completed';
+            const isOverdue =
+              !isCompleted &&
+              task.dueAt &&
+              isBefore(new Date(task.dueAt), new Date());
+            const taskId = task.id || String(idx);
+            const isToggling = togglingId === taskId;
+
+            return (
+              <div
+                key={taskId}
+                onClick={() => handleToggle(taskId)}
+                className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+                  isCompleted
+                    ? 'bg-surface-900/40 border-surface-800/50 opacity-60'
+                    : isOverdue
+                    ? 'bg-red-500/5 border-red-500/30 hover:border-red-500/50'
+                    : 'bg-surface-900 border-surface-800 hover:border-surface-700 hover:shadow-md'
+                }`}
+              >
+                {/* Checkbox */}
+                <div className="pt-0.5 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={isCompleted}
+                    disabled={isToggling}
+                    onChange={() => {}}
+                    className="w-4 h-4 rounded border-surface-700 bg-surface-800 text-brand-600 focus:ring-brand-500 focus:ring-offset-surface-900 cursor-pointer disabled:opacity-50"
+                  />
+                </div>
+
+                {/* Task Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span
+                      className={`text-sm font-medium ${
+                        isCompleted ? 'line-through text-surface-400' : 'text-white'
+                      }`}
+                    >
+                      {task.title}
+                    </span>
+
+                    {/* Priority Badge */}
+                    {task.priority && (
+                      <Badge variant={getPriorityVariant(task.priority)} size="sm">
+                        {task.priority}
+                      </Badge>
+                    )}
+
+                    {/* System Auto-Generated Badge */}
+                    {task.isAutoGenerated && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/30">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        AUTO-SLA
+                      </span>
+                    )}
+                  </div>
+
+                  {task.description && (
+                    <p className="text-xs text-surface-300 line-clamp-2 mb-2">
+                      {task.description}
+                    </p>
+                  )}
+
+                  {/* Footer / Due Date */}
+                  <div className="flex items-center justify-between text-xs">
+                    <div
+                      className={`flex items-center gap-1 font-medium ${
+                        isOverdue
+                          ? 'text-red-400'
+                          : isCompleted
+                          ? 'text-surface-500'
+                          : 'text-surface-400'
+                      }`}
+                    >
+                      {isOverdue ? (
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                      ) : (
+                        <Clock className="w-3.5 h-3.5 shrink-0 text-surface-500" />
+                      )}
+                      <span>
+                        {isCompleted
+                          ? 'Completed'
+                          : task.dueAt
+                          ? `Due ${formatDate(task.dueAt)}`
+                          : 'No due date'}
+                      </span>
+                    </div>
+
+                    {task.assignedTo && (
+                      <span className="text-surface-500 text-[11px]">
+                        Assigned to {task.assignedTo}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default LeadTasks;

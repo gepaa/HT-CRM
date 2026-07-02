@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #090a0f;
+    --surface: #12141d;
+    --border: #1f2233;
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --brand: #3b82f6;
+    --brand-glow: rgba(59, 130, 246, 0.25);
+  }
+
+  body {
+    @apply bg-surface-950 text-surface-100 font-sans antialiased selection:bg-brand-500/30 selection:text-white m-0 p-0 overflow-x-hidden;
+    background-color: #090a0f;
+    color: #f3f4f6;
+  }
+
+  /* Smooth scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0f131f;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a3048;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3b82f6;
+  }
+}
+
+@layer components {
+  /* Common Legacy & New Input / Button Utilities */
+  .input-field {
+    @apply w-full px-4 py-2.5 bg-surface-900/90 border border-surface-700/80 rounded-xl text-sm text-white placeholder:text-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/80 focus:border-brand-500 transition-all shadow-inner;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-semibold text-sm rounded-xl shadow-lg shadow-brand-500/25 border border-brand-400/20 transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface-800/80 hover:bg-surface-700 text-surface-200 font-semibold text-sm rounded-xl border border-surface-700/80 shadow-sm transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-semibold text-sm rounded-xl shadow-lg shadow-red-500/25 border border-red-400/20 transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2 text-surface-400 hover:text-white hover:bg-surface-800/60 font-medium text-sm rounded-lg transition-colors;
+  }
+
+  /* Glass Cards & Panels */
+  .glass-card {
+    @apply bg-surface-900/70 backdrop-blur-md border border-surface-800/80 rounded-2xl shadow-xl transition-all hover:border-surface-700/80;
+  }
+
+  .glass-header {
+    @apply bg-surface-950/80 backdrop-blur-lg border-b border-surface-800/80 sticky top-0 z-30;
+  }
+
+  /* War Room Badges */
+  .badge-hot {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/30 shadow-sm shadow-red-500/10;
+  }
+
+  .badge-warm {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 shadow-sm shadow-amber-500/10;
+  }
+
+  .badge-cold {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30;
+  }
+
+  .badge-qualified {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30;
+  }
+
+  .badge-bad-fit {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-surface-800 text-surface-400 border border-surface-700;
+  }
+
+  .badge-success {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30;
+  }
+
+  .badge-danger {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-500/15 text-red-400 border border-red-500/30;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30;
+  }
+
+  .badge-info {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30;
+  }
+}

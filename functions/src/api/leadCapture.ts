@@ -1,0 +1,176 @@
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+import cors from 'cors';
+import { leadFormDataSchema } from '../lib/validation';
+import { scoreLead } from '../lib/scoring';
+import { calculateSLADeadline } from '../lib/sla';
+
+const db = admin.firestore();
+
+// CORS configuration — restrict to allowed origins in production
+const corsHandler = cors({
+  origin: true, // In production, replace with specific origins from env
+  methods: ['POST'],
+  allowedHeaders: ['Content-Type'],
+});
+
+/**
+ * POST /api/leads/create
+ *
+ * Public endpoint for lead capture from Shopify quote/contact forms.
+ * Protection layers:
+ * 1. CORS restriction (configured above)
+ * 2. Honeypot field detection
+ * 3. Zod validation
+ * 4. Rate limiting placeholder (add Cloud Armor or Cloudflare in production)
+ * 5. Future: Turnstile/reCAPTCHA token verification
+ */
+export const createLead = functions.https.onRequest((req, res) => {
+  corsHandler(req, res, async () => {
+    // Only accept POST
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    try {
+      // Validate the incoming data
+      const result = leadFormDataSchema.safeParse(req.body);
+
+      if (!result.success) {
+        // Check if it's a honeypot rejection — return 200 to not tip off bots
+        const isHoneypot = result.error.issues.some(
+          (issue) => issue.message === 'Invalid submission'
+        );
+
+        if (isHoneypot) {
+          // Silently accept but don't process — bot mitigation
+          res.status(200).json({ success: true, id: 'processed' });
+          return;
+        }
+
+        res.status(400).json({
+          error: 'Validation failed',
+          details: result.error.issues.map((i) => ({
+            field: i.path.join('.'),
+            message: i.message,
+          })),
+        });
+        return;
+      }
+
+      const data = result.data;
+
+      // Score the lead
+      const { score, scoreBreakdown, tier } = scoreLead({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        company: data.company,
+        deliveryZip: data.deliveryZip,
+        productCategory: data.productCategory,
+        quantity: data.quantity,
+        targetBudget: data.targetBudget,
+        projectDetails: data.projectDetails,
+        source: data.source || {},
+        formType: data.formType,
+      });
+
+      // Calculate SLA deadline
+      const now = new Date();
+      const slaDeadline = calculateSLADeadline(now, tier);
+
+      // Create the lead document
+      const leadRef = db.collection('leads').doc();
+      const lead = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email.toLowerCase(),
+        phone: data.phone || null,
+        company: data.company || null,
+        deliveryZip: data.deliveryZip || null,
+        productCategory: data.productCategory,
+        quantity: data.quantity,
+        targetBudget: data.targetBudget,
+        projectDetails: data.projectDetails || null,
+        source: data.source || {},
+        formType: data.formType,
+        score,
+        scoreBreakdown,
+        tier,
+        stage: 'new',
+        assignedTo: null,
+        slaDeadline: admin.firestore.Timestamp.fromDate(slaDeadline),
+        slaStatus: 'ok',
+        contactedAt: null,
+        shopifyCustomerId: null,
+        aiSummary: null,
+        aiNextAction: null,
+        tags: [],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await leadRef.set(lead);
+
+      // Create "created" event in subcollection
+      await leadRef.collection('events').add({
+        type: 'created',
+        description: `New ${data.formType} lead from ${data.firstName} ${data.lastName}`,
+        metadata: {
+          formType: data.formType,
+          productCategory: data.productCategory,
+          score,
+          tier,
+        },
+        createdBy: 'system',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Auto-create task for hot and warm leads
+      if (tier === 'hot' || tier === 'warm') {
+        const taskPriority = tier === 'hot' ? 'urgent' : 'high';
+        const taskTitle = tier === 'hot'
+          ? `🔥 URGENT: Call ${data.firstName} ${data.lastName} — ${data.productCategory} ($${data.targetBudget})`
+          : `Follow up with ${data.firstName} ${data.lastName} — ${data.productCategory}`;
+
+        await db.collection('tasks').add({
+          leadId: leadRef.id,
+          title: taskTitle,
+          description: `Auto-generated: ${data.formType} request for ${data.productCategory}. Budget: ${data.targetBudget}. ${data.projectDetails || ''}`,
+          type: 'follow_up',
+          priority: taskPriority,
+          status: 'pending',
+          dueAt: admin.firestore.Timestamp.fromDate(slaDeadline),
+          assignedTo: '',
+          isAutoGenerated: true,
+          completedAt: null,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Log the auto-task creation event
+        await leadRef.collection('events').add({
+          type: 'task_created',
+          description: `Auto-created ${taskPriority} follow-up task`,
+          metadata: { priority: taskPriority, tier },
+          createdBy: 'system',
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      functions.logger.info(`Lead created: ${leadRef.id}, score: ${score}, tier: ${tier}`);
+
+      res.status(201).json({
+        success: true,
+        id: leadRef.id,
+        score,
+        tier,
+      });
+    } catch (error) {
+      functions.logger.error('Error creating lead:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+});

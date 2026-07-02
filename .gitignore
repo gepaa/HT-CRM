@@ -1,0 +1,32 @@
+# Garage Auto Supplies CRM — .gitignore
+node_modules/
+dist/
+.env
+.env.local
+*.local
+
+# Firebase
+.firebase/
+functions/node_modules/
+functions/lib/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+pubsub-debug.log
+
+# Emulator data
+emulator-data/

@@ -1,0 +1,196 @@
+{% comment %}
+  ==============================================================================
+  GARAGE AUTO SUPPLIES — HIGH-TICKET CRM LEAD CAPTURE FORM
+  ==============================================================================
+  Drop this snippet into any Shopify page, product page, or custom quote template.
+  Example usage: {% render 'garage-crm-form', form_type: 'quote' %}
+{% endcomment %}
+
+<div class="gas-crm-form-wrapper" style="max-width: 680px; margin: 0 auto; padding: 32px; background: #0f172a; color: #f8fafc; border-radius: 12px; font-family: system-ui, -apple-system, sans-serif; border: 1px solid #334155;">
+  <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #ffffff;">Request an Expert Equipment Quote</h3>
+  <p style="font-size: 14px; color: #94a3b8; margin-bottom: 24px;">
+    Authorized dealer pricing, price match guarantee, and freight/liftgate coordination. 
+    <strong style="color: #60a5fa;">Guaranteed reply within 24 business hours.</strong>
+  </p>
+
+  <form id="gas-crm-lead-form" onsubmit="return submitGarageCRMForm(event)">
+    <input type="hidden" name="formType" value="{{ form_type | default: 'quote' }}">
+    
+    {% comment %} HONEYPOT FIELD FOR BOT PROTECTION {% endcomment %}
+    <div style="position: absolute; left: -9999px; top: -9999px;">
+      <label for="gas-hp-field">Leave this empty if you are human</label>
+      <input type="text" id="gas-hp-field" name="honeypot" tabindex="-1" autocomplete="off">
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">First Name *</label>
+        <input type="text" name="firstName" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+      </div>
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Last Name *</label>
+        <input type="text" name="lastName" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Email Address *</label>
+        <input type="email" name="email" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+      </div>
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Phone Number (Direct/Cell)</label>
+        <input type="tel" name="phone" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Company / Shop Name</label>
+        <input type="text" name="company" placeholder="Optional" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+      </div>
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Delivery ZIP Code</label>
+        <input type="text" name="deliveryZip" placeholder="e.g. 80202" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Equipment Category *</label>
+        <select name="productCategory" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+          <option value="4-Post Lifts">4-Post Lifts</option>
+          <option value="Car Lifts">Car Lifts</option>
+          <option value="2-Post Lifts">2-Post Lifts</option>
+          <option value="Scissor Lifts">Scissor Lifts</option>
+          <option value="Tire Changers">Tire Changers</option>
+          <option value="Wheel Balancers">Wheel Balancers</option>
+          <option value="Pressure Washers">Pressure Washers</option>
+          <option value="Mini Excavators">Mini Excavators</option>
+          <option value="Wood Chippers">Wood Chippers</option>
+          <option value="Stump Grinders">Stump Grinders</option>
+          <option value="Sawmills">Sawmills</option>
+          <option value="Air Compressors">Air Compressors</option>
+          <option value="Generators">Generators</option>
+          <option value="Sheet Metal Brakes">Sheet Metal Brakes</option>
+          <option value="Garage Storage">Garage Storage</option>
+          <option value="Workbenches">Workbenches</option>
+          <option value="Other Heavy Equipment">Other Heavy Equipment</option>
+        </select>
+      </div>
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Quantity *</label>
+        <input type="number" name="quantity" min="1" value="1" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+      </div>
+    </div>
+
+    <div style="margin-bottom: 16px;">
+      <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Target Equipment Budget *</label>
+      <input type="text" name="targetBudget" placeholder="e.g. $5,000 - $10,000" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+    </div>
+
+    <div style="margin-bottom: 24px;">
+      <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Project Details / Specs / Timeline</label>
+      <textarea name="projectDetails" rows="3" placeholder="Tell us about your shop setup, voltage requirements, or delivery timeline..." style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;"></textarea>
+    </div>
+
+    <button type="submit" id="gas-submit-btn" style="width: 100%; padding: 14px; background: #2563eb; color: #ffffff; font-weight: 700; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s;">
+      Submit Quote Request
+    </button>
+    <div id="gas-form-status" style="margin-top: 16px; text-align: center; font-size: 14px; display: none;"></div>
+  </form>
+</div>
+
+<script>
+  // Automatically capture and persist Google Ads & UTM attribution parameters
+  (function() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const keys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid', 'fbclid'];
+      const sourceData = JSON.parse(localStorage.getItem('gas_attr_source') || '{}');
+      
+      let changed = false;
+      keys.forEach(key => {
+        if (urlParams.has(key)) {
+          sourceData[key] = urlParams.get(key);
+          changed = true;
+        }
+      });
+      
+      if (!sourceData.landing_page) {
+        sourceData.landing_page = window.location.href;
+        changed = true;
+      }
+      if (!sourceData.referrer && document.referrer) {
+        sourceData.referrer = document.referrer;
+        changed = true;
+      }
+      
+      if (changed) {
+        localStorage.setItem('gas_attr_source', JSON.stringify(sourceData));
+      }
+    } catch (e) {
+      console.warn('GAS Attribution error:', e);
+    }
+  })();
+
+  async function submitGarageCRMForm(event) {
+    event.preventDefault();
+    const form = event.target;
+    const submitBtn = document.getElementById('gas-submit-btn');
+    const statusDiv = document.getElementById('gas-form-status');
+    
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Submitting Quote Request...';
+    statusDiv.style.display = 'none';
+
+    // Build payload
+    const formData = new FormData(form);
+    const sourceData = JSON.parse(localStorage.getItem('gas_attr_source') || '{}');
+    
+    const payload = {
+      firstName: formData.get('firstName'),
+      lastName: formData.get('lastName'),
+      email: formData.get('email'),
+      phone: formData.get('phone') || undefined,
+      company: formData.get('company') || undefined,
+      deliveryZip: formData.get('deliveryZip') || undefined,
+      productCategory: formData.get('productCategory'),
+      quantity: parseInt(formData.get('quantity') || '1', 10),
+      targetBudget: formData.get('targetBudget'),
+      projectDetails: formData.get('projectDetails') || undefined,
+      formType: formData.get('formType') || 'quote',
+      honeypot: formData.get('honeypot') || undefined,
+      source: sourceData
+    };
+
+    // Replace this URL with your production Firebase Cloud Function endpoint when live
+    const API_ENDPOINT = 'https://us-central1-demo-garage-auto-crm.cloudfunctions.net/createLead';
+
+    try {
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        form.reset();
+        statusDiv.style.display = 'block';
+        statusDiv.style.color = '#10b981';
+        statusDiv.innerHTML = '✅ <strong>Thank you!</strong> Your quote request has been received. Our heavy equipment team will review your specs and contact you shortly.';
+        submitBtn.innerText = 'Quote Request Submitted!';
+      } else {
+        throw new Error('Server returned an error');
+      }
+    } catch (error) {
+      console.error('Submission error:', error);
+      statusDiv.style.display = 'block';
+      statusDiv.style.color = '#ef4444';
+      statusDiv.innerHTML = '❌ Something went wrong sending your request. Please email us directly or call customer support.';
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Try Submitting Again';
+    }
+    return false;
+  }
+</script>
