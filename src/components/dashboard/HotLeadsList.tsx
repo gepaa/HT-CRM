@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // HotLeadsList – War Room Hot Leads Needing Action
 // ─────────────────────────────────────────────────────────────
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flame, CheckCircle, ExternalLink, Clock, Phone, Mail, User, Sparkles } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -18,24 +18,43 @@ export interface HotLeadsListProps {
   onMarkContacted?: (id: string) => void;
 }
 
-export const HotLeadsList: React.FC<HotLeadsListProps> = ({ leads = [], onMarkContacted }) => {
+const CLOSED_STAGES = new Set(['won', 'lost', 'closed_won', 'closed_lost']);
+
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const maybeTimestamp = value as { toDate?: () => Date };
+  if (typeof maybeTimestamp.toDate === 'function') return maybeTimestamp.toDate();
+  const parsed = new Date(value as string | number);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export const HotLeadsList = ({ leads = [], onMarkContacted }: HotLeadsListProps) => {
   const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({});
 
   // Filter for hot leads and sort by urgency:
-  // 1. Overdue SLA first
-  // 2. Closest SLA deadline
-  // 3. Highest lead score
+  // 1. Uncontacted overdue SLA first
+  // 2. Uncontacted leads before contacted leads
+  // 3. Closest SLA deadline
+  // 4. Highest lead score
   const hotLeads = leads
-    .filter((lead: Lead) => lead?.tier === 'hot')
+    .filter((lead: Lead) => {
+      const stage = (lead?.stage || lead?.status || '').toLowerCase();
+      return (lead?.tier === 'hot' || stage === 'hot') && !CLOSED_STAGES.has(stage);
+    })
     .sort((a: Lead, b: Lead) => {
-      const aDeadline = a?.slaDeadline ? new Date(a.slaDeadline).getTime() : Infinity;
-      const bDeadline = b?.slaDeadline ? new Date(b.slaDeadline).getTime() : Infinity;
+      const aDeadline = toDate(a?.slaDeadline || a?.slaDeadlineAt)?.getTime() || Infinity;
+      const bDeadline = toDate(b?.slaDeadline || b?.slaDeadlineAt)?.getTime() || Infinity;
       const now = Date.now();
-      const aOverdue = aDeadline < now || a?.isOverdue || a?.slaStatus === 'overdue';
-      const bOverdue = bDeadline < now || b?.isOverdue || b?.slaStatus === 'overdue';
+      const aContacted = !!toDate(a?.contactedAt) || a?.stage === 'contacted';
+      const bContacted = !!toDate(b?.contactedAt) || b?.stage === 'contacted';
+      const aOverdue = !aContacted && (aDeadline < now || a?.isOverdue || a?.slaStatus === 'overdue');
+      const bOverdue = !bContacted && (bDeadline < now || b?.isOverdue || b?.slaStatus === 'overdue');
 
       if (aOverdue && !bOverdue) return -1;
       if (!aOverdue && bOverdue) return 1;
+      if (!aContacted && bContacted) return -1;
+      if (aContacted && !bContacted) return 1;
       if (aDeadline !== bDeadline) return aDeadline - bDeadline;
       return (Number(b?.score) || 0) - (Number(a?.score) || 0);
     });
@@ -117,14 +136,14 @@ export const HotLeadsList: React.FC<HotLeadsListProps> = ({ leads = [], onMarkCo
             </thead>
             <tbody className="divide-y divide-surface-800 text-sm">
               {displayedLeads.map((lead: Lead) => {
-                const deadline = lead?.slaDeadline ? new Date(lead.slaDeadline) : null;
-                const contactedAt = lead?.contactedAt ? new Date(lead.contactedAt) : null;
+                const deadline = toDate(lead?.slaDeadline || lead?.slaDeadlineAt);
+                const contactedAt = toDate(lead?.contactedAt);
                 const slaStatus = getSLAStatus(deadline, contactedAt);
-                const isOverdue = slaStatus === 'overdue' || lead?.slaStatus === 'overdue' || lead?.isOverdue;
                 const isContacted = lead?.stage === 'contacted' || !!contactedAt;
+                const isOverdue = !isContacted && (slaStatus === 'overdue' || lead?.slaStatus === 'overdue' || lead?.isOverdue);
                 const val = Number(lead.estimatedDealValue || lead.productPrice || 0);
                 const sourceStr = lead.source?.utm_source || lead.source?.referrer || 'Direct';
-                const createdDate = lead?.createdAt ? new Date(lead.createdAt) : new Date();
+                const createdDate = toDate(lead?.createdAt) || new Date();
 
                 return (
                   <tr
@@ -245,7 +264,7 @@ export const HotLeadsList: React.FC<HotLeadsListProps> = ({ leads = [], onMarkCo
                             title={lead.aiNextAction || 'Mark Contacted to fulfill SLA'}
                           >
                             <CheckCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span>⚡ Contact</span>
+                            <span>Contact</span>
                           </button>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded border border-emerald-500/20">

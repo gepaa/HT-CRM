@@ -2,14 +2,16 @@
 
 export interface ShopifyCustomer {
   id: number;
-  email: string;
-  first_name: string;
-  last_name: string;
+  admin_graphql_api_id?: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
   phone: string | null;
   addresses: ShopifyAddress[];
+  default_address?: ShopifyAddress | null;
   created_at: string;
   updated_at: string;
-  tags: string;
+  tags?: string;
   note: string | null;
 }
 
@@ -26,13 +28,14 @@ export interface ShopifyAddress {
 
 export interface ShopifyOrder {
   id: number;
-  email: string;
+  name?: string;
+  email: string | null;
   created_at: string;
   total_price: string;
   currency: string;
   financial_status: string;
   fulfillment_status: string | null;
-  customer: ShopifyCustomer;
+  customer: ShopifyCustomer | null;
   line_items: ShopifyLineItem[];
   note: string | null;
   tags: string;
@@ -52,11 +55,12 @@ export interface ShopifyLineItem {
 
 export interface ShopifyDraftOrder {
   id: number;
-  email: string;
+  name?: string;
+  email: string | null;
   created_at: string;
   total_price: string;
   currency: string;
-  customer: ShopifyCustomer;
+  customer: ShopifyCustomer | null;
   line_items: ShopifyLineItem[];
   note: string | null;
   tags: string;
@@ -66,6 +70,4 @@ export interface ShopifyDraftOrder {
 export type ShopifyWebhookTopic =
   | 'customers/create'
   | 'orders/create'
-  | 'draft_orders/create'
-  | 'checkouts/create'
-  | 'carts/create';
+  | 'draft_orders/create';

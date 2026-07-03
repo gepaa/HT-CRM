@@ -10,18 +10,21 @@ import * as crypto from 'crypto';
  */
 export function verifyShopifyWebhook(
   rawBody: string | Buffer,
-  hmacHeader: string,
-  secret: string,
+  hmacHeader: string | undefined,
+  secret: string | undefined,
 ): boolean {
+  if (!hmacHeader || !secret) return false;
+
   const hash = crypto
     .createHmac('sha256', secret)
     .update(rawBody)
     .digest('base64');
 
-  return crypto.timingSafeEqual(
-    Buffer.from(hash),
-    Buffer.from(hmacHeader),
-  );
+  const calculated = Buffer.from(hash, 'base64');
+  const received = Buffer.from(hmacHeader, 'base64');
+
+  if (calculated.length !== received.length) return false;
+  return crypto.timingSafeEqual(calculated, received);
 }
 
 /**

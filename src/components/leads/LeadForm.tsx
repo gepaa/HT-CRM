@@ -27,9 +27,13 @@ export const LeadForm: React.FC<LeadFormProps> = ({
     company: initialData?.company || '',
     deliveryZip: initialData?.deliveryZip || '',
     productCategory: initialData?.productCategory || PRODUCT_CATEGORIES[0],
+    productTitle: initialData?.productTitle || '',
+    productPrice: initialData?.productPrice || '',
     quantity: initialData?.quantity || 1,
     targetBudget: initialData?.targetBudget || '',
+    timeline: initialData?.timeline || '',
     projectDetails: initialData?.projectDetails || '',
+    sourceChannel: initialData?.source?.utm_source || 'manual',
     formType: (initialData?.formType || 'quote') as FormType,
     honeypot: '',
   });
@@ -47,9 +51,13 @@ export const LeadForm: React.FC<LeadFormProps> = ({
         company: initialData.company || prev.company,
         deliveryZip: initialData.deliveryZip || prev.deliveryZip,
         productCategory: initialData.productCategory || prev.productCategory,
+        productTitle: initialData.productTitle || prev.productTitle,
+        productPrice: initialData.productPrice || prev.productPrice,
         quantity: initialData.quantity || prev.quantity,
         targetBudget: initialData.targetBudget || prev.targetBudget,
+        timeline: initialData.timeline || prev.timeline,
         projectDetails: initialData.projectDetails || prev.projectDetails,
+        sourceChannel: initialData.source?.utm_source || prev.sourceChannel,
         formType: initialData.formType || prev.formType,
       }));
     }
@@ -98,9 +106,20 @@ export const LeadForm: React.FC<LeadFormProps> = ({
 
     if (!validate()) return;
 
+    const sourceByChannel = {
+      manual: { utm_source: 'manual' },
+      direct: {},
+      google: { utm_source: 'google', utm_medium: 'cpc' },
+      phone: { utm_source: 'phone' },
+      referral: { utm_source: 'referral', referrer: 'manual-referral' },
+      email: { utm_source: 'email', utm_medium: 'email' },
+    } as const;
+
     await onSubmit({
       ...formData,
       quantity: Number(formData.quantity) || 1,
+      productPrice: formData.productPrice === '' ? undefined : Number(formData.productPrice),
+      source: sourceByChannel[formData.sourceChannel as keyof typeof sourceByChannel] || { utm_source: 'manual' },
     });
   };
 
@@ -113,6 +132,15 @@ export const LeadForm: React.FC<LeadFormProps> = ({
     { value: 'quote', label: 'Quote Request' },
     { value: 'contact', label: 'General Contact' },
     { value: 'product_inquiry', label: 'Product Inquiry' },
+  ];
+
+  const sourceOptions = [
+    { value: 'manual', label: 'Manual Entry' },
+    { value: 'direct', label: 'Direct' },
+    { value: 'google', label: 'Google Ads' },
+    { value: 'phone', label: 'Phone Call' },
+    { value: 'referral', label: 'Referral' },
+    { value: 'email', label: 'Email' },
   ];
 
   return (
@@ -205,6 +233,22 @@ export const LeadForm: React.FC<LeadFormProps> = ({
             error={errors.productCategory}
           />
           <Input
+            label="Product Title"
+            name="productTitle"
+            value={formData.productTitle}
+            onChange={handleChange}
+            placeholder="Atlas 4-Post Commercial Lift"
+          />
+          <Input
+            label="Product Price"
+            type="number"
+            min={0}
+            name="productPrice"
+            value={formData.productPrice}
+            onChange={handleChange}
+            placeholder="12500"
+          />
+          <Input
             label="Quantity *"
             type="number"
             min={1}
@@ -214,11 +258,25 @@ export const LeadForm: React.FC<LeadFormProps> = ({
             error={errors.quantity}
           />
           <Input
-            label="Target Budget"
+            label="Budget"
             name="targetBudget"
             value={formData.targetBudget}
             onChange={handleChange}
             placeholder="$5,000 - $10,000"
+          />
+          <Input
+            label="Timeline"
+            name="timeline"
+            value={formData.timeline}
+            onChange={handleChange}
+            placeholder="Ready this month"
+          />
+          <Select
+            label="Source"
+            name="sourceChannel"
+            value={formData.sourceChannel}
+            onChange={handleChange}
+            options={sourceOptions}
           />
           <Select
             label="Inquiry Type"

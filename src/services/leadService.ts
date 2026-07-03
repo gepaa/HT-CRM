@@ -9,22 +9,61 @@ import {
   onSnapshot,
   addDoc,
   updateDoc,
-  setDoc,
   serverTimestamp,
   type Unsubscribe,
   type FirestoreError,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import type { Lead, LeadStage } from '../types/lead';
-import { SEED_LEADS } from '../lib/seedData';
+import { db, getApiRouteUrl } from '../config/firebase';
+import type { Lead, LeadFormData, LeadStage } from '../types/lead';
 import { normalizeLead } from './leadMapper';
 
 const LEADS_COLLECTION = 'leads';
 
+export type CreateLeadInput = LeadFormData & {
+  assignedTo?: string | null;
+};
+
+interface CreateLeadResponse {
+  success?: boolean;
+  id?: string;
+  score?: number;
+  tier?: string;
+  error?: string;
+  details?: Array<{ field: string; message: string }>;
+}
+
+function cleanOptional(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function toLeadCapturePayload(data: CreateLeadInput): CreateLeadInput {
+  return {
+    firstName: data.firstName.trim(),
+    lastName: data.lastName.trim(),
+    email: data.email.trim().toLowerCase(),
+    phone: cleanOptional(data.phone),
+    company: cleanOptional(data.company),
+    deliveryZip: cleanOptional(data.deliveryZip),
+    productCategory: data.productCategory,
+    productTitle: cleanOptional(data.productTitle),
+    productPrice: typeof data.productPrice === 'number' && Number.isFinite(data.productPrice)
+      ? data.productPrice
+      : undefined,
+    quantity: Number(data.quantity) || 1,
+    targetBudget: data.targetBudget.trim(),
+    timeline: cleanOptional(data.timeline),
+    projectDetails: cleanOptional(data.projectDetails),
+    source: data.source || { utm_source: 'manual' },
+    formType: data.formType || 'quote',
+    honeypot: data.honeypot || '',
+    assignedTo: data.assignedTo ?? null,
+  };
+}
+
 export const leadService = {
   /**
    * Subscribe to all leads in real time, ordered by createdAt descending.
-   * Falls back to seed data if Firestore returns empty or errors.
    */
   subscribeLeads(
     onData: (leads: Lead[]) => void,
@@ -35,20 +74,12 @@ export const leadService = {
     return onSnapshot(
       q,
       (snapshot) => {
-        let docs = snapshot.docs.map((docSnap) =>
+        const docs = snapshot.docs.map((docSnap) =>
           normalizeLead(docSnap.data(), docSnap.id)
         );
-
-        if (docs.length === 0) {
-          docs = SEED_LEADS.map((l) => normalizeLead(l, l.id));
-        }
-
         onData(docs);
       },
       (err) => {
-        console.warn('leadService.subscribeLeads error, falling back to seed data:', err);
-        const seedDocs = SEED_LEADS.map((l) => normalizeLead(l, l.id));
-        onData(seedDocs);
         if (onError) onError(err);
       }
     );
@@ -75,95 +106,95 @@ export const leadService = {
         if (snapshot.exists()) {
           onData(normalizeLead(snapshot.data(), snapshot.id));
         } else {
-          const seed = SEED_LEADS.find((l) => l.id === leadId);
-          onData(seed ? normalizeLead(seed, seed.id) : null);
+          onData(null);
         }
       },
       (err) => {
-        console.warn(`leadService.subscribeLead(${leadId}) error, fallback to seed:`, err);
-        const seed = SEED_LEADS.find((l) => l.id === leadId);
-        onData(seed ? normalizeLead(seed, seed.id) : null);
         if (onError) onError(err);
       }
     );
   },
 
   /**
-   * Create a new lead document in Firestore.
+   * Create a new lead through the Cloud Function so scoring, SLA, events,
+   * and auto-task creation stay consistent with Shopify/inbound captures.
    */
-  async createLead(data: Partial<Lead> & {
-    firstName: string;
-    lastName: string;
-    email: string;
-    productCategory: string;
-    targetBudget: string;
-    quantity?: number;
-  }): Promise<string> {
-    const stage: LeadStage = data.stage || 'new';
-    const quantity = data.quantity || 1;
-    const score = data.score ?? 50;
-    const tier = data.tier || (score >= 70 ? 'hot' : score >= 40 ? 'warm' : 'cold');
+  async createLead(data: CreateLeadInput): Promise<string> {
+    const payload = toLeadCapturePayload(data);
+    try {
+      const response = await fetch(getApiRouteUrl('/leads/create'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    const newLeadData = {
-      ...data,
-      stage,
-      status: stage,
-      quantity,
-      score,
-      leadScore: score,
-      tier,
-      productTitle: data.productTitle || `${quantity}x ${data.productCategory}`,
-      category: data.category || data.productCategory,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      let body: CreateLeadResponse | null = null;
+      try {
+        body = await response.json();
+      } catch {
+        body = null;
+      }
+
+      if (response.ok && body?.success && body.id) {
+        return body.id;
+      }
+
+      if (response.status === 400 && body?.error) {
+        const validation = body?.details?.map((detail) => `${detail.field}: ${detail.message}`).join(', ');
+        throw new Error(validation || body?.error || 'Validation failed');
+      }
+    } catch (apiError: any) {
+      if (apiError.message && (apiError.message.includes('Validation') || apiError.message.includes('validation'))) {
+        throw apiError;
+      }
+      console.warn('API /leads/create unavailable or failed, falling back to direct Firestore write:', apiError);
+    }
+
+    // Direct Firestore fallback when Cloud Functions are not deployed or unreachable
+    const docRef = await addDoc(collection(db, LEADS_COLLECTION), {
+      ...payload,
+      stage: 'new',
+      status: 'new',
+      score: 50,
+      leadScore: 50,
+      tier: 'warm',
+      scoreBreakdown: { budget: 15, category: 15, intent: 10, engagement: 10 },
+      scoreReasons: ['Direct capture fallback (default warm scoring)'],
+      slaStatus: 'ok',
       contactedAt: null,
       lastContactedAt: null,
-      slaStatus: 'ok',
       isOverdue: false,
-    };
+      aiSummary: `Lead interested in ${payload.quantity}x ${payload.productCategory}.`,
+      aiNextAction: 'Follow up via phone or email.',
+      tags: [payload.productCategory.toLowerCase().replace(/\s+/g, '-'), 'warm', 'manual-fallback'],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
 
-    const docRef = await addDoc(collection(db, LEADS_COLLECTION), newLeadData);
-
-    // Also record timeline event
     try {
-      await addDoc(collection(docRef, 'events'), {
+      await addDoc(collection(db, LEADS_COLLECTION, docRef.id, 'events'), {
         type: 'created',
-        description: `Lead created for ${data.firstName} ${data.lastName}`,
-        metadata: { category: data.productCategory, quantity },
+        description: `New ${payload.formType} lead from ${payload.firstName} ${payload.lastName} (direct fallback)`,
+        metadata: { formType: payload.formType, productCategory: payload.productCategory },
         createdBy: 'system',
         createdAt: serverTimestamp(),
       });
     } catch (e) {
-      console.warn('Failed to record lead creation event:', e);
+      console.warn('Failed to create event in fallback:', e);
     }
 
     return docRef.id;
   },
 
   /**
-   * Safe doc updater that promotes a seed lead to Firestore if it doesn't exist yet.
+   * Update an existing lead document.
    */
   async safeUpdate(leadId: string, updates: Record<string, any>): Promise<void> {
     const docRef = doc(db, LEADS_COLLECTION, leadId);
-    try {
-      await updateDoc(docRef, {
-        ...updates,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (err: any) {
-      if (err.code === 'not-found' || err.message?.includes('No document to update')) {
-        const seed = SEED_LEADS.find((l) => l.id === leadId);
-        if (seed) {
-          await setDoc(docRef, {
-            ...seed,
-            ...updates,
-            updatedAt: serverTimestamp(),
-          });
-          return;
-        }
-      }
-      throw err;
-    }
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
   },
 
   /**

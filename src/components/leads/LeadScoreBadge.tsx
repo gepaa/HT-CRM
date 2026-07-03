@@ -19,8 +19,10 @@ export const LeadScoreBadge: React.FC<LeadScoreBadgeProps> = ({
 
   const tierStyles: Record<LeadTier, string> = {
     hot: 'bg-red-500/20 text-red-400 border border-red-500/30',
+    qualified: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
     warm: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
     cold: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+    bad_fit: 'bg-surface-700/20 text-surface-400 border border-surface-700/30',
   };
 
   const sizeStyles: Record<NonNullable<LeadScoreBadgeProps['size']>, string> = {

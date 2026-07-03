@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // FollowUpsDueToday – War Room Open Tasks Due Today Component
 // ─────────────────────────────────────────────────────────────
-import React, { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckSquare, Phone, Clock, AlertCircle, Check, User, ExternalLink } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -18,7 +18,7 @@ export interface FollowUpsDueTodayProps {
 const PRIORITY_CONFIG: Record<TaskPriority, { label: string; variant: 'danger' | 'warning' | 'info' | 'default'; bgClass: string; textClass: string }> = {
   urgent: { label: 'Urgent', variant: 'danger', bgClass: 'bg-red-500/20 border-red-500/40', textClass: 'text-red-400 animate-pulse' },
   high: { label: 'High', variant: 'warning', bgClass: 'bg-amber-500/20 border-amber-500/40', textClass: 'text-amber-400' },
-  medium: { label: 'Medium', variant: 'info', bgClass: 'bg-blue-500/20 border-blue-500/40', textClass: 'text-blue-400' },
+  normal: { label: 'Normal', variant: 'info', bgClass: 'bg-blue-500/20 border-blue-500/40', textClass: 'text-blue-400' },
   low: { label: 'Low', variant: 'default', bgClass: 'bg-surface-800 border-surface-700', textClass: 'text-surface-400' },
 };
 
@@ -26,11 +26,20 @@ function formatTimeOnly(date: Date): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export const FollowUpsDueToday: React.FC<FollowUpsDueTodayProps> = ({ tasks = [], leads = [], onCompleteTask }) => {
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const maybeTimestamp = value as { toDate?: () => Date };
+  if (typeof maybeTimestamp.toDate === 'function') return maybeTimestamp.toDate();
+  const parsed = new Date(value as string | number);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export const FollowUpsDueToday = ({ tasks = [], leads = [], onCompleteTask }: FollowUpsDueTodayProps) => {
   const [completingIds, setCompletingIds] = useState<Record<string, boolean>>({});
 
   // Map leads by id for quick lookup
-  const leadsMap = React.useMemo(() => {
+  const leadsMap = useMemo(() => {
     const map: Record<string, Lead> = {};
     leads.forEach((l) => {
       if (l?.id) map[l.id] = l;
@@ -38,31 +47,26 @@ export const FollowUpsDueToday: React.FC<FollowUpsDueTodayProps> = ({ tasks = []
     return map;
   }, [leads]);
 
-  // Filter for open tasks
-  const openTasks = tasks.filter((task: Task) => {
-    const st = (task?.status || '').toLowerCase();
-    return st !== 'completed' && st !== 'cancelled' && !task.completedAt;
-  });
-
-  // Sort: Overdue/Today first, then by priority (urgent > high > medium > low), then due date
+  // Filter for open tasks due today, then sort by priority and due time.
   const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
-  const sortedTasks = [...openTasks].sort((a: Task, b: Task) => {
-    const timeA = a?.dueDate ? new Date(a.dueDate).getTime() : ((a as any)?.dueAt ? new Date((a as any).dueAt).getTime() : Infinity);
-    const timeB = b?.dueDate ? new Date(b.dueDate).getTime() : ((b as any)?.dueAt ? new Date((b as any).dueAt).getTime() : Infinity);
-    
-    const aIsTodayOrOverdue = timeA <= endOfToday;
-    const bIsTodayOrOverdue = timeB <= endOfToday;
+  const dueTodayTasks = tasks.filter((task: Task) => {
+    const st = (task?.status || '').toLowerCase();
+    if (st === 'completed' || st === 'cancelled' || task.completedAt) return false;
+    const due = toDate(task?.dueDate || (task as any)?.dueAt)?.getTime() || 0;
+    return due >= startOfToday && due <= endOfToday;
+  });
 
-    if (aIsTodayOrOverdue && !bIsTodayOrOverdue) return -1;
-    if (!aIsTodayOrOverdue && bIsTodayOrOverdue) return 1;
-
-    const priorityWeight: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
-    const pA = priorityWeight[(a?.priority || 'medium') as string] || 2;
-    const pB = priorityWeight[(b?.priority || 'medium') as string] || 2;
+  const sortedTasks = [...dueTodayTasks].sort((a: Task, b: Task) => {
+    const priorityWeight: Record<string, number> = { urgent: 4, high: 3, normal: 2, medium: 2, low: 1 };
+    const pA = priorityWeight[(a?.priority || 'normal') as string] || 2;
+    const pB = priorityWeight[(b?.priority || 'normal') as string] || 2;
     if (pA !== pB) return pB - pA;
 
+    const timeA = toDate(a?.dueDate || (a as any)?.dueAt)?.getTime() || Infinity;
+    const timeB = toDate(b?.dueDate || (b as any)?.dueAt)?.getTime() || Infinity;
     return timeA - timeB;
   });
 
@@ -92,7 +96,7 @@ export const FollowUpsDueToday: React.FC<FollowUpsDueTodayProps> = ({ tasks = []
             <h3 className="text-base font-semibold text-surface-100 tracking-tight flex items-center gap-2">
               Follow-Ups Due Today
               <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500/20 text-amber-400">
-                {openTasks.length}
+                {dueTodayTasks.length}
               </span>
             </h3>
           </div>
@@ -117,10 +121,10 @@ export const FollowUpsDueToday: React.FC<FollowUpsDueTodayProps> = ({ tasks = []
           </div>
         ) : (
           displayedTasks.map((task: Task) => {
-            const dueDate = task?.dueDate ? new Date(task.dueDate) : ((task as any)?.dueAt ? new Date((task as any).dueAt) : null);
+            const dueDate = toDate(task?.dueDate || (task as any)?.dueAt);
             const isOverdue = dueDate && dueDate.getTime() < now.getTime() - 60_000;
             const isToday = dueDate && dueDate.toDateString() === now.toDateString();
-            const pConfig = PRIORITY_CONFIG[(task?.priority || 'medium') as TaskPriority] || PRIORITY_CONFIG.medium;
+            const pConfig = PRIORITY_CONFIG[(task?.priority || 'normal') as TaskPriority] || PRIORITY_CONFIG.normal;
             
             const lead = task?.leadId ? leadsMap[task.leadId] : null;
 
@@ -179,7 +183,7 @@ export const FollowUpsDueToday: React.FC<FollowUpsDueTodayProps> = ({ tasks = []
                         )}
                         {lead.company && (
                           <span className="text-xs text-surface-400 font-medium truncate">
-                            • {lead.company}
+                            {lead.company}
                           </span>
                         )}
                       </div>

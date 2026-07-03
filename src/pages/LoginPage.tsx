@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wrench, Loader2, AlertCircle, Zap, ArrowRight } from 'lucide-react';
+import { Wrench, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export default function LoginPage() {
@@ -56,12 +56,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleDemoLogin = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    handleLoginAttempt(demoEmail, demoPass);
-  };
-
   return (
     <div className="min-h-screen bg-surface-950 flex items-center justify-center px-4 py-12 relative overflow-hidden">
       {/* Ambient glow */}
@@ -111,7 +105,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="ben, pablo, or admin@garageautosupplies.com"
+                placeholder="admin@garageautosupplies.com"
                 className="input-field"
                 autoComplete="username"
               />
@@ -154,57 +148,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* 1-Click Local Demo Login Section */}
-          <div className="mt-8 pt-6 border-t border-surface-800">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
-                <Zap className="w-3.5 h-3.5 animate-pulse" />
-                <span>1-Click Dev Demo Login</span>
-              </span>
-              <span className="text-[10px] text-surface-500 font-medium">Instant Access</span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('ben@garageautosupplies.com', 'clutchking123')}
-                disabled={loading}
-                className="p-2.5 rounded-xl bg-surface-800/80 hover:bg-surface-800 border border-surface-700/80 hover:border-brand-500/50 text-left transition-all group focus:outline-none"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center text-xs font-bold shrink-0">
-                    B
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white group-hover:text-brand-400 transition-colors truncate">
-                      Ben (Clutch King)
-                    </p>
-                    <p className="text-[10px] text-surface-400">Admin Role</p>
-                  </div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleDemoLogin('pablo@garageautosupplies.com', 'pabgoat123')}
-                disabled={loading}
-                className="p-2.5 rounded-xl bg-surface-800/80 hover:bg-surface-800 border border-surface-700/80 hover:border-purple-500/50 text-left transition-all group focus:outline-none"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold shrink-0">
-                    P
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white group-hover:text-purple-400 transition-colors truncate">
-                      Pablo Admin
-                    </p>
-                    <p className="text-[10px] text-surface-400">Sales Role</p>
-                  </div>
-                </div>
-              </button>
-            </div>
-          </div>
 
           {/* Footer */}
           <p className="text-center text-[11px] text-surface-500 mt-6 font-medium">

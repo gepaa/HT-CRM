@@ -96,25 +96,39 @@ export interface TierConfig {
 
 export const TIER_CONFIG: Record<LeadTier, TierConfig> = {
   hot: {
-    minScore: 70,
+    minScore: 75,
     slaMinutes: 30,
     color: 'text-red-400',
     bgColor: 'bg-red-500/20',
     label: 'Hot',
   },
-  warm: {
-    minScore: 40,
+  qualified: {
+    minScore: 50,
     slaMinutes: 480,
+    color: 'text-emerald-400',
+    bgColor: 'bg-emerald-500/20',
+    label: 'Qualified',
+  },
+  warm: {
+    minScore: 30,
+    slaMinutes: 1440,
     color: 'text-amber-400',
     bgColor: 'bg-amber-500/20',
     label: 'Warm',
   },
   cold: {
-    minScore: 0,
-    slaMinutes: 1440,
+    minScore: 15,
+    slaMinutes: 2880,
     color: 'text-blue-400',
     bgColor: 'bg-blue-500/20',
     label: 'Cold',
+  },
+  bad_fit: {
+    minScore: 0,
+    slaMinutes: 10080,
+    color: 'text-surface-400',
+    bgColor: 'bg-surface-700/20',
+    label: 'Bad Fit',
   },
 };
 

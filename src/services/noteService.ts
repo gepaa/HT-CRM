@@ -14,7 +14,6 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { LeadNote } from '../types/crm';
-import { SEED_NOTES } from '../lib/seedData';
 
 function toDate(val: unknown): Date | null {
   if (!val) return null;
@@ -64,16 +63,10 @@ export const noteService = {
     return onSnapshot(
       q,
       (snapshot) => {
-        let docs = snapshot.docs.map((d) => normalizeNote(d.data(), d.id, leadId));
-        if (docs.length === 0 && SEED_NOTES[leadId]) {
-          docs = SEED_NOTES[leadId].map((n) => normalizeNote(n, n.id, leadId));
-        }
+        const docs = snapshot.docs.map((d) => normalizeNote(d.data(), d.id, leadId));
         onData(docs);
       },
       (err) => {
-        console.warn(`noteService.subscribeLeadNotes(${leadId}) error, fallback to seed:`, err);
-        const docs = (SEED_NOTES[leadId] || []).map((n) => normalizeNote(n, n.id, leadId));
-        onData(docs);
         if (onError) onError(err);
       }
     );

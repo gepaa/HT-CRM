@@ -9,7 +9,6 @@ import {
   onSnapshot,
   addDoc,
   updateDoc,
-  setDoc,
   serverTimestamp,
   type Unsubscribe,
   type FirestoreError,
@@ -17,7 +16,6 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { Deal, DealStage } from '../types/crm';
-import { SEED_DEALS } from '../lib/seedData';
 
 const DEALS_COLLECTION = 'deals';
 
@@ -86,16 +84,10 @@ export const dealService = {
     return onSnapshot(
       q,
       (snapshot) => {
-        let docs = snapshot.docs.map((d) => normalizeDeal(d.data(), d.id));
-        if (docs.length === 0) {
-          docs = SEED_DEALS.map((d) => normalizeDeal(d, d.id));
-        }
+        const docs = snapshot.docs.map((d) => normalizeDeal(d.data(), d.id));
         onData(docs);
       },
       (err) => {
-        console.warn('dealService.subscribeDeals error, fallback to seed:', err);
-        const docs = SEED_DEALS.map((d) => normalizeDeal(d, d.id));
-        onData(docs);
         if (onError) onError(err);
       }
     );
@@ -133,25 +125,10 @@ export const dealService = {
    */
   async safeUpdate(dealId: string, updates: Record<string, any>): Promise<void> {
     const docRef = doc(db, DEALS_COLLECTION, dealId);
-    try {
-      await updateDoc(docRef, {
-        ...updates,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (err: any) {
-      if (err.code === 'not-found' || err.message?.includes('No document to update')) {
-        const seed = SEED_DEALS.find((d) => d.id === dealId);
-        if (seed) {
-          await setDoc(docRef, {
-            ...seed,
-            ...updates,
-            updatedAt: serverTimestamp(),
-          });
-          return;
-        }
-      }
-      throw err;
-    }
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
   },
 
   /**

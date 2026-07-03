@@ -1,32 +1,51 @@
-# Garage Auto Supplies CRM — .gitignore
+# HT CRM — .gitignore
 node_modules/
 dist/
+
+# ── Environment files ──────────────────────────────────────────
+# Ignore real local secret/override files:
 .env
 .env.local
-*.local
+.env.*.local
+# Explicitly ALLOW template and production placeholder files (no real secrets):
+!.env.example
+!.env.production
+# Functions env
+functions/.env
+functions/.env.local
+functions/.env.*.local
+!functions/.env.example
 
-# Firebase
+# ── Service Account Keys (NEVER commit) ───────────────────────
+serviceAccountKey.json
+*-service-account.json
+*serviceaccount*.json
+
+# ── Firebase ──────────────────────────────────────────────────
 .firebase/
 functions/node_modules/
 functions/lib/
 
-# IDE
+# ── IDE ───────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# ── OS ────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 
-# Logs
+# ── Logs ──────────────────────────────────────────────────────
 *.log
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
 pubsub-debug.log
 
-# Emulator data
+# ── Emulator data ─────────────────────────────────────────────
 emulator-data/
+
+# ── Vercel ────────────────────────────────────────────────────
+.vercel

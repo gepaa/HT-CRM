@@ -4,21 +4,37 @@ import * as dotenv from 'dotenv';
 import { subDays } from 'date-fns';
 import { SEED_LEADS, SEED_DEALS, SEED_TASKS, SEED_NOTES, SEED_EVENTS } from '../src/lib/seedData';
 
-dotenv.config();
+const isProduction = process.argv.includes('--production');
+if (isProduction) {
+  console.log('🌍 Loading .env.production for production seeding...');
+  dotenv.config({ path: '.env.production' });
+} else {
+  dotenv.config();
+}
+
+const useEmulators = !isProduction && process.env.VITE_USE_EMULATORS === 'true';
+
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required. Use VITE_USE_EMULATORS=true for local emulator seeding.`);
+  }
+  return value;
+}
 
 const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || 'demo-api-key',
+  apiKey: useEmulators ? (process.env.VITE_FIREBASE_API_KEY || 'local-emulator-key') : requiredEnv('VITE_FIREBASE_API_KEY'),
   authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || 'localhost',
-  projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'demo-garage-auto-crm',
-  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || 'demo-garage-auto-crm.appspot.com',
-  messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000',
-  appId: process.env.VITE_FIREBASE_APP_ID || '1:000000000000:web:demo',
+  projectId: requiredEnv('VITE_FIREBASE_PROJECT_ID'),
+  storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: useEmulators ? (process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000') : requiredEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+  appId: useEmulators ? (process.env.VITE_FIREBASE_APP_ID || 'local-emulator-app') : requiredEnv('VITE_FIREBASE_APP_ID'),
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-if (process.env.VITE_USE_EMULATORS === 'true' || process.env.VITE_FIREBASE_API_KEY === 'demo-api-key') {
+if (useEmulators) {
   console.log('🔌 Connecting to Firestore Emulator on localhost:8080...');
   try {
     connectFirestoreEmulator(db, 'localhost', 8080);

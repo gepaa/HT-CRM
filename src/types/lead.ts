@@ -24,7 +24,7 @@ export interface LeadScoreBreakdown {
 }
 
 /** Temperature tier derived from total score */
-export type LeadTier = 'hot' | 'warm' | 'cold';
+export type LeadTier = 'hot' | 'qualified' | 'warm' | 'cold' | 'bad_fit';
 
 /** Pipeline stage a lead can occupy */
 export type LeadStage =
@@ -66,6 +66,12 @@ export interface Lead {
   contactedAt: Date | null;
   formType: FormType;
   shopifyCustomerId: string | null;
+  shopifyCustomerGid?: string | null;
+  shopifyDraftOrderId?: string | null;
+  shopifyDraftOrderIds?: string[];
+  shopifyOrderId?: string | null;
+  shopifyOrderIds?: string[];
+  shopifyShopDomain?: string | null;
   aiSummary: string | null;
   aiNextAction: string | null;
   tags: string[];
@@ -101,8 +107,11 @@ export interface LeadFormData {
   company?: string;
   deliveryZip?: string;
   productCategory: string;
+  productTitle?: string;
+  productPrice?: number;
   quantity: number;
   targetBudget: string;
+  timeline?: string;
   projectDetails?: string;
   source: LeadSource;
   formType: FormType;

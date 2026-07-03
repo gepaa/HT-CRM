@@ -1,0 +1,13 @@
+specVersion: "v1alpha"
+serviceId: "ht-crm-service"
+location: "us-central1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "ht_crm_db"
+      cloudSql:
+        instanceId: "ht-crm-postgres"
+        projectId: "demo-garage-auto-crm"
+connectorDirs:
+  - "./connector"

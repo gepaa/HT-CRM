@@ -16,6 +16,7 @@ const PipelinePage = React.lazy(() => import('../pages/PipelinePage'));
 const TasksPage = React.lazy(() => import('../pages/TasksPage'));
 const ReportsPage = React.lazy(() => import('../pages/ReportsPage'));
 const SettingsPage = React.lazy(() => import('../pages/SettingsPage'));
+const SqlConnectDemoPage = React.lazy(() => import('../pages/SqlConnectDemoPage'));
 
 // ── Suspense fallback ────────────────────────────────────────
 function PageLoader() {
@@ -111,6 +112,14 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={<PageLoader />}>
                 <SettingsPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: 'sql-connect',
+            element: (
+              <Suspense fallback={<PageLoader />}>
+                <SqlConnectDemoPage />
               </Suspense>
             ),
           },

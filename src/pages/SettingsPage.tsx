@@ -132,7 +132,7 @@ export default function SettingsPage() {
                 <span className="text-xs font-extrabold uppercase text-red-400 tracking-wider">
                   Hot Tier SLA
                 </span>
-                <Badge variant="danger" className="text-[10px]">Score ≥ 70</Badge>
+                <Badge variant="danger" className="text-[10px]">Score ≥ 75</Badge>
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -153,7 +153,7 @@ export default function SettingsPage() {
                   Warm Tier SLA
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                  Score 40-69
+                  Score 30–49
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -175,7 +175,7 @@ export default function SettingsPage() {
                   Cold Tier SLA
                 </span>
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  Score &lt; 40
+                  Score 15–29
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -298,6 +298,7 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {INTEGRATIONS_LIST.map((item) => {
             const IconComponent = item.icon;
+            const isShopify = item.id === 'shopify';
             return (
               <div
                 key={item.id}
@@ -310,9 +311,16 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-white">{item.name}</h3>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-surface-850 text-surface-400 border border-surface-800">
-                        Not Connected
-                      </span>
+                      {isShopify ? (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Active — Webhook Live
+                        </span>
+                      ) : (
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-surface-850 text-surface-400 border border-surface-800">
+                          Not Connected
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -321,18 +329,29 @@ export default function SettingsPage() {
                   {item.description}
                 </p>
 
-                <div className="pt-2 border-t border-surface-850 flex items-center justify-between">
-                  <span className="text-[11px] font-extrabold uppercase text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded">
-                    Coming Soon
-                  </span>
-                  <button
-                    type="button"
-                    disabled
-                    className="px-4 py-1.5 rounded-lg bg-surface-800 text-surface-500 text-xs font-semibold cursor-not-allowed border border-surface-750"
-                  >
-                    Connect
-                  </button>
-                </div>
+                {isShopify ? (
+                  <div className="pt-2 border-t border-surface-850 space-y-2">
+                    <p className="text-[10px] text-surface-500 font-mono break-all">
+                      Webhook URL: https://ht-crm-3957c.web.app/shopify-webhook
+                    </p>
+                    <p className="text-[10px] text-surface-500 font-mono break-all">
+                      Topics: customers/create · draft_orders/create · orders/create
+                    </p>
+                  </div>
+                ) : (
+                  <div className="pt-2 border-t border-surface-850 flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold uppercase text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded">
+                      Coming Soon
+                    </span>
+                    <button
+                      type="button"
+                      disabled
+                      className="px-4 py-1.5 rounded-lg bg-surface-800 text-surface-500 text-xs font-semibold cursor-not-allowed border border-surface-750"
+                    >
+                      Connect
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

@@ -1,7 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // StatsCards – War Room 8-KPI Telemetry Grid
 // ─────────────────────────────────────────────────────────────
-import React from 'react';
 import { TrendingUp, Flame, AlertTriangle, CheckSquare, FileText, DollarSign, Award, Clock } from 'lucide-react';
 import { formatCurrency } from '../../lib/formatters';
 import { getSLAStatus } from '../../lib/sla';
@@ -15,30 +14,49 @@ export interface StatsCardsProps {
   deals: any[];
 }
 
-export const StatsCards: React.FC<StatsCardsProps> = ({ leads = [], tasks = [], deals = [] }) => {
+const CLOSED_STAGES = new Set(['won', 'lost', 'closed_won', 'closed_lost']);
+
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const maybeTimestamp = value as { toDate?: () => Date };
+  if (typeof maybeTimestamp.toDate === 'function') return maybeTimestamp.toDate();
+  const parsed = new Date(value as string | number);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isToday(date: Date | null, todayStr: string): boolean {
+  return !!date && date.toDateString() === todayStr;
+}
+
+export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsProps) => {
   const now = new Date();
   const todayStr = now.toDateString();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
   // 1. New leads today
   const newLeadsToday = leads.filter((lead: Lead) => {
-    if (!lead?.createdAt) return false;
-    const date = new Date(lead.createdAt);
-    return date.toDateString() === todayStr;
+    return isToday(toDate(lead?.createdAt), todayStr);
   }).length;
 
   // 2. Hot leads not contacted
   const hotNotContacted = leads.filter((lead: Lead) => {
-    const isHot = lead?.tier === 'hot';
-    const notContacted = !lead?.contactedAt || lead?.stage === 'new';
-    return isHot && notContacted;
+    const stage = (lead?.stage || lead?.status || '').toLowerCase();
+    const isOpen = !CLOSED_STAGES.has(stage);
+    const isHot = lead?.tier === 'hot' || stage === 'hot';
+    const notContacted = !toDate(lead?.contactedAt) && stage !== 'contacted';
+    return isOpen && isHot && notContacted;
   }).length;
 
   // 3. Overdue SLA leads
   const overdueSLAs = leads.filter((lead: Lead) => {
+    const stage = (lead?.stage || lead?.status || '').toLowerCase();
+    if (CLOSED_STAGES.has(stage)) return false;
+    const contacted = toDate(lead?.contactedAt);
+    if (contacted || stage === 'contacted') return false;
+    const deadline = toDate(lead?.slaDeadline || lead?.slaDeadlineAt);
     if (lead?.slaStatus === 'overdue' || lead?.isOverdue) return true;
-    const deadline = lead?.slaDeadline ? new Date(lead.slaDeadline) : null;
-    const contacted = lead?.contactedAt ? new Date(lead.contactedAt) : null;
     return getSLAStatus(deadline, contacted) === 'overdue';
   }).length;
 
@@ -46,15 +64,16 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ leads = [], tasks = [], 
   const followUpsToday = tasks.filter((task: Task) => {
     const st = (task?.status || '').toLowerCase();
     if (st === 'completed' || st === 'cancelled' || task?.completedAt) return false;
-    const due = task?.dueDate ? new Date(task.dueDate).getTime() : (task?.dueAt ? new Date(task.dueAt).getTime() : 0);
-    return due > 0 && due <= endOfToday;
+    const dueDate = toDate(task?.dueDate || (task as any)?.dueAt);
+    const due = dueDate?.getTime() || 0;
+    return due >= startOfToday && due <= endOfToday;
   }).length;
 
   // 5. Quote requests today
   const quoteRequestsToday = leads.filter((lead: Lead) => {
-    const isToday = lead?.createdAt && new Date(lead.createdAt).toDateString() === todayStr;
-    const isQuote = lead?.formType === 'quote' || (lead?.tags && lead.tags.includes('quote')) || (lead?.productTitle && lead.productTitle.toLowerCase().includes('quote'));
-    return isToday || isQuote;
+    const createdToday = isToday(toDate(lead?.createdAt), todayStr);
+    const isQuote = lead?.formType === 'quote' || lead?.tags?.includes('quote') || !!lead?.productTitle?.toLowerCase().includes('quote');
+    return createdToday && isQuote;
   }).length;
 
   // 6. Open pipeline value (exclude closed/lost/won)
@@ -70,19 +89,12 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ leads = [], tasks = [], 
   const wonDealsThisMonth = deals.filter((deal: Deal) => {
     const stage = (deal?.stage || '').toLowerCase();
     if (stage !== 'won' && stage !== 'closed_won') return false;
-    const closeDate = deal?.expectedCloseDate ? new Date(deal.expectedCloseDate) : (deal?.updatedAt ? new Date(deal.updatedAt) : null);
-    if (!closeDate) return true; // Include if date missing to ensure seed revenue is visible
+    const closeDate = toDate(deal?.expectedCloseDate || deal?.updatedAt);
+    if (!closeDate) return false;
     return closeDate.getMonth() === currentMonth && closeDate.getFullYear() === currentYear;
   });
 
-  let wonRevenueThisMonth = wonDealsThisMonth.reduce((sum: number, deal: Deal) => sum + (Number(deal?.value) || 0), 0);
-  // Fallback to total closed won if month filter yielded 0 so demo telemetry is rich
-  if (wonRevenueThisMonth === 0) {
-    wonRevenueThisMonth = deals.reduce((sum: number, deal: Deal) => {
-      const stage = (deal?.stage || '').toLowerCase();
-      return (stage === 'won' || stage === 'closed_won') ? sum + (Number(deal?.value) || 0) : sum;
-    }, 0);
-  }
+  const wonRevenueThisMonth = wonDealsThisMonth.reduce((sum: number, deal: Deal) => sum + (Number(deal?.value) || 0), 0);
 
   // 8. Average response time placeholder
   const avgResponseTime = '14m 22s';
@@ -155,7 +167,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ leads = [], tasks = [], 
             {overdueSLAs}
           </div>
           <p className="text-xs text-surface-400 mt-1 font-medium">
-            {overdueSLAs > 0 ? '⚠️ SLA BREACH WARNING' : 'All SLAs within target'}
+            {overdueSLAs > 0 ? 'SLA breach warning' : 'All SLAs within target'}
           </p>
         </div>
       </div>

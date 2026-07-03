@@ -73,6 +73,13 @@ service cloud.firestore {
       allow write: if isAdmin() || request.auth.uid == userId;
     }
 
+    // Shopify webhook delivery receipts — admin SDK writes (bypass rules),
+    // admin users can read for debugging, all others denied.
+    match /shopify_webhook_deliveries/{deliveryId} {
+      allow read: if isAdmin();
+      allow write: if false; // Admin SDK only
+    }
+
     // Deny everything else
     match /{document=**} {
       allow read, write: if false;

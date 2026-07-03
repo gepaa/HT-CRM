@@ -3,10 +3,38 @@
   GARAGE AUTO SUPPLIES — HIGH-TICKET CRM LEAD CAPTURE FORM
   ==============================================================================
   Drop this snippet into any Shopify page, product page, or custom quote template.
-  Example usage: {% render 'garage-crm-form', form_type: 'quote' %}
+  Example usage:
+  {% render 'garage-crm-form',
+    form_type: 'quote',
+    crm_endpoint: 'https://YOUR_FIREBASE_HOSTING_DOMAIN/api/leads/create'
+  %}
 {% endcomment %}
 
-<div class="gas-crm-form-wrapper" style="max-width: 680px; margin: 0 auto; padding: 32px; background: #0f172a; color: #f8fafc; border-radius: 12px; font-family: system-ui, -apple-system, sans-serif; border: 1px solid #334155;">
+{% comment %}
+  ==============================================================================
+  SHOPIFY WEBHOOK REGISTRATION (one-time setup, do in Shopify Partner Dashboard)
+  ==============================================================================
+  Register the following URL for ALL THREE topics:
+    - customers/create
+    - draft_orders/create
+    - orders/create
+
+  Webhook URL: https://ht-crm-3957c.web.app/shopify-webhook
+  (Alternatively: https://us-central1-ht-crm-3957c.cloudfunctions.net/shopifyWebhook)
+
+  Set SHOPIFY_WEBHOOK_SECRET in Cloud Functions config:
+    firebase functions:secrets:set SHOPIFY_WEBHOOK_SECRET
+
+  Set CRM Lead Endpoint metafield in Shopify Admin:
+    Namespace: gas_crm  |  Key: lead_endpoint
+    Value: https://ht-crm-3957c.web.app/api/leads/create
+  ==============================================================================
+{% endcomment %}
+
+{% assign gas_crm_fallback_endpoint = 'https://ht-crm-3957c.web.app/api/leads/create' %}
+{% assign gas_crm_endpoint = crm_endpoint | default: shop.metafields.gas_crm.lead_endpoint | default: gas_crm_fallback_endpoint %}
+
+<div class="gas-crm-form-wrapper" data-crm-endpoint="{{ gas_crm_endpoint | escape }}" style="max-width: 680px; margin: 0 auto; padding: 32px; background: #0f172a; color: #f8fafc; border-radius: 12px; font-family: system-ui, -apple-system, sans-serif; border: 1px solid #334155;">
   <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #ffffff;">Request an Expert Equipment Quote</h3>
   <p style="font-size: 14px; color: #94a3b8; margin-bottom: 24px;">
     Authorized dealer pricing, price match guarantee, and freight/liftgate coordination. 
@@ -164,8 +192,17 @@
       source: sourceData
     };
 
-    // Replace this URL with your production Firebase Cloud Function endpoint when live
-    const API_ENDPOINT = 'https://us-central1-demo-garage-auto-crm.cloudfunctions.net/createLead';
+    const wrapper = form.closest('.gas-crm-form-wrapper');
+    const API_ENDPOINT = wrapper ? wrapper.getAttribute('data-crm-endpoint') : '';
+
+    if (!API_ENDPOINT) {
+      statusDiv.style.display = 'block';
+      statusDiv.style.color = '#ef4444';
+      statusDiv.innerHTML = 'This quote form is not configured yet. Please contact customer support.';
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Try Submitting Again';
+      return false;
+    }
 
     try {
       const response = await fetch(API_ENDPOINT, {

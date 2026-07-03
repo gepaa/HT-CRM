@@ -21,7 +21,7 @@ function toDate(val: unknown): Date | null {
 }
 
 /**
- * Normalizes any lead data object (from Firestore or seed/mock data) into a compliant
+ * Normalizes lead data objects into a compliant
  * Lead object that satisfies both existing frontend properties and CRM schema requirements.
  */
 export function normalizeLead(raw: Record<string, any>, docId: string): Lead {
@@ -122,6 +122,12 @@ export function normalizeLead(raw: Record<string, any>, docId: string): Lead {
     nextFollowUpAt,
     formType: raw.formType || 'quote',
     shopifyCustomerId: raw.shopifyCustomerId ?? null,
+    shopifyCustomerGid: raw.shopifyCustomerGid ?? null,
+    shopifyDraftOrderId: raw.shopifyDraftOrderId ?? null,
+    shopifyDraftOrderIds: Array.isArray(raw.shopifyDraftOrderIds) ? raw.shopifyDraftOrderIds : [],
+    shopifyOrderId: raw.shopifyOrderId ?? null,
+    shopifyOrderIds: Array.isArray(raw.shopifyOrderIds) ? raw.shopifyOrderIds : [],
+    shopifyShopDomain: raw.shopifyShopDomain ?? null,
     aiSummary: raw.aiSummary ?? `${tier.toUpperCase()} lead interested in ${quantity}x ${productCategory}.`,
     aiNextAction: raw.aiNextAction ?? 'Follow up via phone or email.',
     tags: Array.isArray(raw.tags) ? raw.tags : [productCategory.toLowerCase().replace(/\s+/g, '-'), tier],

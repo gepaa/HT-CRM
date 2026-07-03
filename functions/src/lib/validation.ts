@@ -30,11 +30,15 @@ export const leadFormDataSchema = z.object({
   productCategory: z.enum(PRODUCT_CATEGORIES, {
     message: 'Invalid product category',
   }),
+  productTitle: z.string().max(500).optional(),
+  productPrice: z.number().min(0).optional(),
   quantity: z.number().int().min(1).default(1),
   targetBudget: z.string().min(1, 'Budget is required').max(100),
+  timeline: z.string().max(200).optional(),
   projectDetails: z.string().max(5000).optional(),
   source: leadSourceSchema.optional().default({}),
   formType: z.enum(['quote', 'contact', 'product_inquiry']),
+  assignedTo: z.string().nullable().optional(),
   honeypot: z.string().optional(),
 }).refine(
   (data) => !data.honeypot || data.honeypot === '',

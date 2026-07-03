@@ -49,6 +49,11 @@ export const leadFormDataSchema = z
     productCategory: z.enum(PRODUCT_CATEGORIES as unknown as [string, ...string[]], {
       message: 'Please select a product category',
     }),
+    productTitle: z.string().max(500, 'Product title is too long').optional(),
+    productPrice: z.coerce
+      .number()
+      .min(0, 'Product price cannot be negative')
+      .optional(),
     quantity: z.coerce
       .number()
       .int('Quantity must be a whole number')
@@ -62,6 +67,7 @@ export const leadFormDataSchema = z
       .string()
       .max(5000, 'Project details are too long')
       .optional(),
+    timeline: z.string().max(200, 'Timeline is too long').optional(),
     source: leadSourceSchema.default({}),
     formType: z.enum(['quote', 'contact', 'product_inquiry'], {
       message: 'Invalid form type',
@@ -116,6 +122,12 @@ export const leadSchema = z.object({
   contactedAt: z.coerce.date().nullable(),
   formType: z.enum(['quote', 'contact', 'product_inquiry']),
   shopifyCustomerId: z.string().nullable(),
+  shopifyCustomerGid: z.string().nullable().optional(),
+  shopifyDraftOrderId: z.string().nullable().optional(),
+  shopifyDraftOrderIds: z.array(z.string()).optional(),
+  shopifyOrderId: z.string().nullable().optional(),
+  shopifyOrderIds: z.array(z.string()).optional(),
+  shopifyShopDomain: z.string().nullable().optional(),
   aiSummary: z.string().nullable(),
   aiNextAction: z.string().nullable(),
   tags: z.array(z.string()),

@@ -37,7 +37,7 @@ export default function TasksPage() {
   const [description, setDescription] = useState('');
   const [leadId, setLeadId] = useState('');
   const [assignedTo, setAssignedTo] = useState('Sales Rep');
-  const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [priority, setPriority] = useState<TaskPriority>('normal');
   const [dueDateStr, setDueDateStr] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -106,9 +106,8 @@ export default function TasksPage() {
         return <Badge variant="danger">Urgent</Badge>;
       case 'high':
         return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 uppercase">High</span>;
-      case 'medium':
-      case 'normal' as any:
-        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase">Medium</span>;
+      case 'normal':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 uppercase">Normal</span>;
       case 'low':
       default:
         return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-surface-800 text-surface-400 uppercase">Low</span>;
@@ -177,7 +176,7 @@ export default function TasksPage() {
             <option value="all">All Priorities</option>
             <option value="urgent">Urgent</option>
             <option value="high">High</option>
-            <option value="medium">Medium</option>
+            <option value="normal">Normal</option>
             <option value="low">Low</option>
           </select>
         </div>
@@ -376,7 +375,7 @@ export default function TasksPage() {
                   className="w-full px-3 py-2 bg-surface-950 border border-surface-700 rounded-lg text-sm text-surface-200 focus:outline-none focus:ring-2 focus:ring-brand-500 capitalize"
                 >
                   <option value="low">Low</option>
-                  <option value="medium">Medium</option>
+                  <option value="normal">Normal / Medium</option>
                   <option value="high">High</option>
                   <option value="urgent">Urgent</option>
                 </select>

@@ -18,7 +18,7 @@ export interface LeadScoreBreakdown {
   engagementScore: number;
 }
 
-export type LeadTier = 'hot' | 'warm' | 'cold';
+export type LeadTier = 'hot' | 'qualified' | 'warm' | 'cold' | 'bad_fit';
 export type LeadStage = 'new' | 'contacted' | 'qualified' | 'quoted' | 'negotiation' | 'won' | 'lost';
 export type SLAStatus = 'ok' | 'warning' | 'overdue';
 export type FormType = 'quote' | 'contact' | 'product_inquiry';
@@ -31,10 +31,24 @@ export interface LeadFormData {
   company?: string;
   deliveryZip?: string;
   productCategory: string;
+  productTitle?: string;
+  productPrice?: number;
   quantity: number;
   targetBudget: string;
+  timeline?: string;
   projectDetails?: string;
   source: LeadSource;
   formType: FormType;
+  assignedTo?: string | null;
   honeypot?: string;
+}
+
+export interface ShopifyLeadIds {
+  shopifyCustomerId?: string | null;
+  shopifyCustomerGid?: string | null;
+  shopifyDraftOrderId?: string | null;
+  shopifyDraftOrderIds?: string[];
+  shopifyOrderId?: string | null;
+  shopifyOrderIds?: string[];
+  shopifyShopDomain?: string | null;
 }

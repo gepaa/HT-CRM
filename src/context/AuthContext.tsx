@@ -81,56 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Auth actions
   const login = useCallback(async (email: string, password: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (err: unknown) {
-      // Offline / emulator mock fallback for local dev accounts
-      const cleanEmail = email.trim().toLowerCase();
-      if (
-        (cleanEmail === 'ben@garageautosupplies.com' && password === 'clutchking123') ||
-        (cleanEmail === 'pablo@garageautosupplies.com' && password === 'pabgoat123') ||
-        (cleanEmail === 'admin@garageautosupplies.com' && password === 'password123') ||
-        (cleanEmail === 'sales@garageautosupplies.com' && password === 'password123')
-      ) {
-        const isBenOrAdmin = cleanEmail.startsWith('ben') || cleanEmail.startsWith('admin');
-        const mockUid = isBenOrAdmin ? 'ben-test-uid' : 'pablo-test-uid';
-        const mockName = isBenOrAdmin ? 'Ben (Clutch King)' : 'Pablo (Pab Goat)';
-        const mockRole = isBenOrAdmin ? 'admin' : 'sales_rep';
-
-        const mockFirebaseUser = {
-          uid: mockUid,
-          email: cleanEmail,
-          displayName: mockName,
-          emailVerified: true,
-          isAnonymous: false,
-          metadata: {},
-          providerData: [],
-          refreshToken: '',
-          tenantId: null,
-          delete: async () => {},
-          getIdToken: async () => 'mock-token',
-          getIdTokenResult: async () => ({ token: 'mock', signInProvider: 'custom', claims: {}, authTime: '', issuedAtTime: '', expirationTime: '' }),
-          reload: async () => {},
-          toJSON: () => ({}),
-          phoneNumber: null,
-          photoURL: null,
-          providerId: 'custom',
-        } as unknown as User;
-
-        setUser(mockFirebaseUser);
-        setCrmUser({
-          id: mockUid,
-          uid: mockUid,
-          email: cleanEmail,
-          displayName: mockName,
-          role: mockRole,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-        return;
-      }
-      throw err;
-    }
+    await signInWithEmailAndPassword(auth, email, password);
   }, []);
 
   const logout = useCallback(async () => {

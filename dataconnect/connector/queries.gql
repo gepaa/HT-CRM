@@ -1,0 +1,37 @@
+# Queries for Movie App
+
+query ListMovies @auth(level: PUBLIC, insecureReason: "Anyone can list all movies and their reviews.") {
+  movies {
+    id
+    title
+    imageUrl
+    genre
+    reviews_on_movie {
+      rating
+      reviewText
+      reviewDate
+      user {
+        id
+        username
+      }
+    }
+  }
+}
+
+query GetMovie($id: UUID!) @auth(level: PUBLIC) {
+  movie(id: $id) {
+    id
+    title
+    imageUrl
+    genre
+    reviews_on_movie {
+      rating
+      reviewText
+      reviewDate
+      user {
+        id
+        username
+      }
+    }
+  }
+}

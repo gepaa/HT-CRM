@@ -1107,7 +1107,7 @@ export const SEED_TASKS: Task[] = [
     assignedTo: 'pablo-test-uid',
     assignedBy: 'pablo-test-uid',
     status: 'pending',
-    priority: 'medium',
+    priority: 'normal',
     dueDate: new Date(Date.now() + 3600 * 1000 * 24),
     completedAt: null,
     createdAt: new Date(Date.now() - 3600 * 1000 * 18),

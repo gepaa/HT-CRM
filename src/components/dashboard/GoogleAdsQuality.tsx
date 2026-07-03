@@ -1,7 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // GoogleAdsQuality – War Room Google Ads Performance Component
 // ─────────────────────────────────────────────────────────────
-import React from 'react';
 import { Target, Search } from 'lucide-react';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { formatCurrency } from '../../lib/formatters';
@@ -20,7 +19,7 @@ interface CampaignStats {
   hotCount: number;
 }
 
-export const GoogleAdsQuality: React.FC<GoogleAdsQualityProps> = ({ leads = [], deals = [] }) => {
+export const GoogleAdsQuality = ({ leads = [], deals = [] }: GoogleAdsQualityProps) => {
   // Filter for Google Ads leads
   const googleLeads = leads.filter((lead: Lead) => {
     const src = lead?.source || {};
@@ -59,7 +58,9 @@ export const GoogleAdsQuality: React.FC<GoogleAdsQualityProps> = ({ leads = [], 
   // Group by campaign or keyword
   const campaignMap: Record<string, CampaignStats> = {};
   googleLeads.forEach((l: Lead) => {
-    const cName = l.source?.utm_campaign || l.source?.landing_page || l.source?.utm_medium || 'General Search / CPC';
+    const campaign = l.source?.utm_campaign || l.source?.landing_page || 'General Search';
+    const keyword = l.source?.utm_term || l.source?.utm_content;
+    const cName = keyword ? `${campaign} / ${keyword}` : campaign;
     if (!campaignMap[cName]) {
       campaignMap[cName] = { name: cName, count: 0, totalScore: 0, hotCount: 0 };
     }
@@ -167,7 +168,7 @@ export const GoogleAdsQuality: React.FC<GoogleAdsQualityProps> = ({ leads = [], 
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right font-mono font-bold text-red-400">
-                      {c.hotCount > 0 ? `${c.hotCount} 🔥` : '0'}
+                      {c.hotCount}
                     </td>
                   </tr>
                 );

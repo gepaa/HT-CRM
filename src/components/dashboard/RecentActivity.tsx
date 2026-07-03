@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // RecentActivity – War Room Unified Activity Feed
 // ─────────────────────────────────────────────────────────────
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity,
@@ -17,9 +17,8 @@ import {
 import { EmptyState } from '../../components/ui/EmptyState';
 import { formatRelativeTime, formatCurrency } from '../../lib/formatters';
 import { STAGE_LABELS, TIER_CONFIG } from '../../lib/constants';
-import { SEED_EVENTS, SEED_NOTES } from '../../lib/seedData';
 import type { Lead, LeadStage, LeadTier } from '../../types/lead';
-import type { Task, Deal, LeadEvent, LeadNote } from '../../types/crm';
+import type { Task, Deal } from '../../types/crm';
 
 export interface RecentActivityProps {
   leads: any[];
@@ -48,7 +47,7 @@ interface TimelineItem {
   tier?: string;
 }
 
-export const RecentActivity: React.FC<RecentActivityProps> = ({ leads = [], tasks = [], deals = [] }) => {
+export const RecentActivity = ({ leads = [], tasks = [], deals = [] }: RecentActivityProps) => {
   const leadsMap = useMemo(() => {
     const map: Record<string, Lead> = {};
     leads.forEach((l: Lead) => {
@@ -85,7 +84,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ leads = [], task
           id: `quote-${lead.id}-${updated.getTime()}`,
           type: 'quote_sent',
           title: `Quote Sent: ${name}`,
-          description: `Estimated Value: ${formatCurrency(lead.estimatedDealValue || lead.productPrice || 0)}`,
+          description: `Estimated Value: ${formatCurrency(Number(lead.estimatedDealValue || lead.productPrice || 0))}`,
           timestamp: new Date(updated.getTime() - 10_000), // Slightly after create
           leadId: lead.id,
           leadName: name,
@@ -109,52 +108,6 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ leads = [], task
         });
       }
 
-      // Check SEED_EVENTS for rich telemetry
-      const seedEvts = SEED_EVENTS[lead.id] || [];
-      seedEvts.forEach((evt: LeadEvent) => {
-        const evtTime = evt?.createdAt ? new Date(evt.createdAt) : updated;
-        if (evt.type === 'note_added') {
-          items.push({
-            id: `seed-evt-${evt.id}`,
-            type: 'note_added',
-            title: `Note: ${name}`,
-            description: evt.description || 'New note appended to file',
-            timestamp: evtTime,
-            leadId: lead.id,
-            leadName: name,
-            company: lead.company,
-          });
-        } else if (evt.type === 'score_updated') {
-          const sVal = Number(evt.metadata?.score || 90);
-          items.push({
-            id: `seed-score-${evt.id}`,
-            type: 'stage_changed',
-            title: `Score Updated: ${name}`,
-            description: evt.description || `AI scored lead as ${sVal}`,
-            timestamp: evtTime,
-            leadId: lead.id,
-            leadName: name,
-            company: lead.company,
-          });
-        }
-      });
-
-      // Check SEED_NOTES
-      const seedNts = SEED_NOTES[lead.id] || [];
-      seedNts.forEach((nt: LeadNote) => {
-        const ntTime = nt?.createdAt ? new Date(nt.createdAt) : updated;
-        const author = (nt as any).createdByName || (nt as any).createdBy || 'Sales Rep';
-        items.push({
-          id: `seed-nt-${nt.id}`,
-          type: 'note_added',
-          title: `Note Added by ${author}`,
-          description: nt.content,
-          timestamp: ntTime,
-          leadId: lead.id,
-          leadName: name,
-          company: lead.company,
-        });
-      });
     });
 
     // 2. Tasks: completed tasks
@@ -187,7 +140,7 @@ export const RecentActivity: React.FC<RecentActivityProps> = ({ leads = [], task
         items.push({
           id: `deal-won-${deal.id}`,
           type: 'won',
-          title: `🎉 Deal Closed Won: ${deal.title}`,
+          title: `Deal Closed Won: ${deal.title}`,
           description: `Revenue: ${formatCurrency(deal.value)} • Closed by ${deal.assignedTo}`,
           timestamp: time,
           leadId: deal.leadId,

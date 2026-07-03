@@ -16,14 +16,19 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       { "source": "/api/**", "function": "api" },
+      { "source": "/shopify-webhook", "function": "shopifyWebhook" },
       { "source": "**", "destination": "/index.html" }
     ]
+  },
+  "dataconnect": {
+    "source": "dataconnect"
   },
   "emulators": {
     "auth": { "port": 9099 },
     "functions": { "port": 5001 },
     "firestore": { "port": 8080 },
     "hosting": { "port": 5002 },
+    "dataconnect": { "port": 9399 },
     "ui": { "enabled": true, "port": 4000 }
   }
 }

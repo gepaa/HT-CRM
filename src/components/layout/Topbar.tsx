@@ -6,13 +6,9 @@ import { useLeads } from '../../hooks/useLeads';
 import { getInitials } from '../../lib/formatters';
 import { Modal } from '../ui/Modal';
 import { LeadForm } from '../leads/LeadForm';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { firebaseRuntime } from '../../config/firebase';
 import { useToast } from '../ui/Toast';
-import { scoreLead } from '../../lib/scoring';
-import { calculateSLADeadline } from '../../lib/sla';
-import { DEFAULT_BUSINESS_HOURS, DEFAULT_SLA_CONFIG } from '../../lib/constants';
-import type { LeadFormData, LeadStage } from '../../types/lead';
+import type { LeadFormData } from '../../types/lead';
 
 export interface TopbarProps {
   title?: string | React.ReactNode;
@@ -21,7 +17,7 @@ export interface TopbarProps {
 
 export const Topbar: React.FC<TopbarProps> = ({ title = 'War Room', breadcrumb }) => {
   const { user, crmUser, logout } = useAuth();
-  const { leads } = useLeads();
+  const { leads, createLead } = useLeads();
   const navigate = useNavigate();
   const { success, error } = useToast();
 
@@ -31,6 +27,9 @@ export const Topbar: React.FC<TopbarProps> = ({ title = 'War Room', breadcrumb }
   const [creating, setCreating] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
+  // Derive overdue/urgent task count for notification badge
+  const overdueTaskCount = leads.filter((l) => l.slaStatus === 'overdue').length;
+
   // Derive user display details
   const displayName = crmUser?.displayName || user?.displayName || 'Garage Admin';
   const parts = displayName.split(' ');
@@ -38,17 +37,21 @@ export const Topbar: React.FC<TopbarProps> = ({ title = 'War Room', breadcrumb }
   const lastName = parts.length > 1 ? parts[1] : 'A';
   const initials = getInitials(firstName, lastName);
 
-  // Environment detection badge
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const envBadge = isLocalhost ? (
+  const envLabel = firebaseRuntime.useEmulators
+    ? 'FIREBASE EMULATORS'
+    : isLocalhost
+    ? 'LOCAL + PROD FIREBASE'
+    : 'PRODUCTION FIREBASE';
+  const envBadge = firebaseRuntime.useEmulators ? (
     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold tracking-wide select-none">
       <Zap className="w-3.5 h-3.5 animate-pulse" />
-      <span>LOCAL DEV</span>
+      <span>{envLabel}</span>
     </div>
   ) : (
     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold tracking-wide select-none">
       <Terminal className="w-3.5 h-3.5" />
-      <span>EMULATOR / PROD</span>
+      <span>{envLabel}</span>
     </div>
   );
 
@@ -71,52 +74,28 @@ export const Topbar: React.FC<TopbarProps> = ({ title = 'War Room', breadcrumb }
 
     setCreating(true);
     try {
-      const { score, scoreBreakdown, tier } = scoreLead(formData);
-      const now = new Date();
-      const slaDeadline = calculateSLADeadline(now, tier, DEFAULT_BUSINESS_HOURS, DEFAULT_SLA_CONFIG);
-
-      const leadData = {
+      const leadId = await createLead({
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
-        phone: formData.phone?.trim() || null,
-        company: formData.company?.trim() || null,
-        deliveryZip: formData.deliveryZip?.trim() || null,
+        phone: formData.phone?.trim() || undefined,
+        company: formData.company?.trim() || undefined,
+        deliveryZip: formData.deliveryZip?.trim() || undefined,
         productCategory: formData.productCategory,
+        productTitle: formData.productTitle?.trim() || undefined,
+        productPrice: formData.productPrice,
         quantity: formData.quantity || 1,
         targetBudget: formData.targetBudget.trim(),
-        projectDetails: formData.projectDetails?.trim() || null,
+        timeline: formData.timeline?.trim() || undefined,
+        projectDetails: formData.projectDetails?.trim() || undefined,
         source: formData.source || { utm_source: 'quick_add' },
         formType: formData.formType || 'quote',
-        score,
-        scoreBreakdown,
-        tier,
-        stage: 'new' as LeadStage,
         assignedTo: crmUser?.id || null,
-        slaDeadline: Timestamp.fromDate(slaDeadline),
-        slaStatus: 'ok',
-        contactedAt: null,
-        shopifyCustomerId: null,
-        aiSummary: 'Quickly logged via Topbar War Room quick-add action.',
-        aiNextAction: 'Review equipment specs and schedule initial contact.',
-        tags: [formData.productCategory.toLowerCase().replace(/\s+/g, '-'), tier, 'quick-add'],
-        createdAt: Timestamp.fromDate(now),
-        updatedAt: Timestamp.fromDate(now),
-      };
-
-      const docRef = await addDoc(collection(db, 'leads'), leadData);
-
-      await addDoc(collection(docRef, 'events'), {
-        type: 'created',
-        description: `Quick-added lead for ${formData.firstName} ${formData.lastName}`,
-        metadata: { score, tier, category: formData.productCategory },
-        createdBy: crmUser?.displayName || 'Team Member',
-        createdAt: Timestamp.fromDate(now),
       });
 
-      success(`Lead created! Score: ${score} (${tier.toUpperCase()})`);
+      success('Lead created.');
       setIsAddLeadModalOpen(false);
-      navigate(`/leads/${docRef.id}`);
+      navigate(`/leads/${leadId}`);
     } catch (err) {
       console.error('Error creating quick lead:', err);
       error('Failed to create lead. Check console or permissions.');
@@ -220,13 +199,19 @@ export const Topbar: React.FC<TopbarProps> = ({ title = 'War Room', breadcrumb }
             <span className="font-bold">Add Lead</span>
           </button>
 
-          {/* Notification Bell */}
+          {/* Notification Bell — navigates to overdue tasks */}
           <button
+            onClick={() => navigate('/tasks')}
             className="relative p-2 rounded-xl bg-surface-800/80 text-surface-300 hover:text-white hover:bg-surface-800 transition-all border border-surface-700/60 focus:outline-none"
-            title="Notifications"
+            title={overdueTaskCount > 0 ? `${overdueTaskCount} overdue lead${overdueTaskCount === 1 ? '' : 's'} — view tasks` : 'Tasks'}
+            aria-label="View tasks"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-surface-900 animate-pulse" />
+            {overdueTaskCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5 bg-red-500 rounded-full ring-2 ring-surface-900 animate-pulse flex items-center justify-center text-[9px] font-black text-white">
+                {overdueTaskCount > 9 ? '9+' : overdueTaskCount}
+              </span>
+            )}
           </button>
 
           {/* User Profile Menu Trigger */}

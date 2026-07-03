@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // OverdueSLAList – Red Alert War Room Overdue SLA Section
 // ─────────────────────────────────────────────────────────────
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, User, Clock, Phone, Mail, ExternalLink, CheckCircle } from 'lucide-react';
 import { formatSLARemaining, getSLAStatus } from '../../lib/sla';
@@ -16,25 +16,35 @@ export interface OverdueSLAListProps {
   onMarkContacted?: (id: string) => void;
 }
 
-export const OverdueSLAList: React.FC<OverdueSLAListProps> = ({ leads = [], onMarkContacted }) => {
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const maybeTimestamp = value as { toDate?: () => Date };
+  if (typeof maybeTimestamp.toDate === 'function') return maybeTimestamp.toDate();
+  const parsed = new Date(value as string | number);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export const OverdueSLAList = ({ leads = [], onMarkContacted }: OverdueSLAListProps) => {
   const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({});
 
   // Filter for overdue SLA leads matching HOT or QUALIFIED and not contacted
   const overdueLeads = leads.filter((lead: Lead) => {
+    const stage = (lead?.stage || '').toLowerCase();
+    const status = (lead?.status || '').toLowerCase();
     const isHotOrQualified =
       lead?.tier === 'hot' ||
-      lead?.tier === 'warm' ||
-      lead?.stage === 'qualified' ||
-      lead?.status === 'qualified' ||
-      lead?.isOverdue ||
-      lead?.slaStatus === 'overdue';
+      stage === 'hot' ||
+      stage === 'qualified' ||
+      status === 'hot' ||
+      status === 'qualified';
 
-    const notContacted = !lead?.contactedAt && lead?.stage !== 'contacted';
+    const notContacted = !toDate(lead?.contactedAt) && stage !== 'contacted' && status !== 'contacted';
 
     if (!isHotOrQualified || !notContacted) return false;
 
-    const deadline = lead?.slaDeadline ? new Date(lead.slaDeadline) : null;
-    const contactedAt = lead?.contactedAt ? new Date(lead.contactedAt) : null;
+    const deadline = toDate(lead?.slaDeadline || lead?.slaDeadlineAt);
+    const contactedAt = toDate(lead?.contactedAt);
     const computedStatus = getSLAStatus(deadline, contactedAt);
 
     return lead?.isOverdue || lead?.slaStatus === 'overdue' || computedStatus === 'overdue';
@@ -111,7 +121,7 @@ export const OverdueSLAList: React.FC<OverdueSLAListProps> = ({ leads = [], onMa
           </div>
         ) : (
           overdueLeads.map((lead: Lead) => {
-            const deadline = lead?.slaDeadline ? new Date(lead.slaDeadline) : null;
+            const deadline = toDate(lead?.slaDeadline || lead?.slaDeadlineAt);
             const overdueText = formatSLARemaining(deadline);
             const val = Number(lead.estimatedDealValue || lead.productPrice || 0);
 

@@ -10,7 +10,6 @@ import {
   onSnapshot,
   addDoc,
   updateDoc,
-  setDoc,
   serverTimestamp,
   type Unsubscribe,
   type FirestoreError,
@@ -18,7 +17,6 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import type { Task, TaskStatus, TaskPriority } from '../types/crm';
-import { SEED_TASKS } from '../lib/seedData';
 
 const TASKS_COLLECTION = 'tasks';
 
@@ -41,6 +39,7 @@ function normalizeTask(raw: Record<string, any>, docId: string): Task & { dueAt:
   const updatedAt = toDate(raw.updatedAt) ?? new Date();
   const dueDate = toDate(raw.dueDate) ?? toDate(raw.dueAt);
   const completedAt = toDate(raw.completedAt);
+  const priority = raw.priority === 'medium' ? 'normal' : (raw.priority || 'normal');
 
   return {
     ...raw,
@@ -51,7 +50,7 @@ function normalizeTask(raw: Record<string, any>, docId: string): Task & { dueAt:
     assignedTo: raw.assignedTo || 'Unassigned',
     assignedBy: raw.assignedBy || 'system',
     status: raw.status || 'pending',
-    priority: raw.priority || 'medium',
+    priority,
     dueDate,
     dueAt: dueDate,
     completedAt,
@@ -76,10 +75,6 @@ export const taskService = {
       (snapshot) => {
         let docs = snapshot.docs.map((d) => normalizeTask(d.data(), d.id));
 
-        if (docs.length === 0) {
-          docs = SEED_TASKS.map((t) => normalizeTask(t, t.id));
-        }
-
         if (filters?.status) docs = docs.filter((t) => t.status === filters.status);
         if (filters?.priority) docs = docs.filter((t) => t.priority === filters.priority);
         if (filters?.assignedTo) docs = docs.filter((t) => t.assignedTo === filters.assignedTo);
@@ -88,13 +83,6 @@ export const taskService = {
         onData(docs);
       },
       (err) => {
-        console.warn('taskService.subscribeTasks error, fallback to seed:', err);
-        let docs = SEED_TASKS.map((t) => normalizeTask(t, t.id));
-        if (filters?.status) docs = docs.filter((t) => t.status === filters.status);
-        if (filters?.priority) docs = docs.filter((t) => t.priority === filters.priority);
-        if (filters?.assignedTo) docs = docs.filter((t) => t.assignedTo === filters.assignedTo);
-        if (filters?.leadId) docs = docs.filter((t) => t.leadId === filters.leadId);
-        onData(docs);
         if (onError) onError(err);
       }
     );
@@ -122,16 +110,10 @@ export const taskService = {
     return onSnapshot(
       q,
       (snapshot) => {
-        let docs = snapshot.docs.map((d) => normalizeTask(d.data(), d.id));
-        if (docs.length === 0) {
-          docs = SEED_TASKS.filter((t) => t.leadId === leadId).map((t) => normalizeTask(t, t.id));
-        }
+        const docs = snapshot.docs.map((d) => normalizeTask(d.data(), d.id));
         onData(docs);
       },
       (err) => {
-        console.warn(`taskService.subscribeLeadTasks(${leadId}) error, fallback to seed:`, err);
-        const docs = SEED_TASKS.filter((t) => t.leadId === leadId).map((t) => normalizeTask(t, t.id));
-        onData(docs);
         if (onError) onError(err);
       }
     );
@@ -153,6 +135,7 @@ export const taskService = {
       ...data,
       assignedBy: data.assignedBy || 'system',
       status: 'pending' as TaskStatus,
+      priority: String(data.priority) === 'medium' ? 'normal' : data.priority,
       dueDate: data.dueDate ?? null,
       dueAt: data.dueDate ?? null,
       completedAt: null,
@@ -167,25 +150,10 @@ export const taskService = {
    */
   async safeUpdate(taskId: string, updates: Record<string, any>): Promise<void> {
     const docRef = doc(db, TASKS_COLLECTION, taskId);
-    try {
-      await updateDoc(docRef, {
-        ...updates,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (err: any) {
-      if (err.code === 'not-found' || err.message?.includes('No document to update')) {
-        const seed = SEED_TASKS.find((t) => t.id === taskId);
-        if (seed) {
-          await setDoc(docRef, {
-            ...seed,
-            ...updates,
-            updatedAt: serverTimestamp(),
-          });
-          return;
-        }
-      }
-      throw err;
-    }
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
   },
 
   /**

@@ -11,13 +11,30 @@ const CATEGORY_TIERS: Record<string, number> = {
 };
 
 function parseBudget(budget: string): number {
-  const cleaned = budget.replace(/[$,\s]/g, '');
-  // Handle ranges like "5000-10000"
+  if (!budget) return NaN;
+  const cleaned = budget.replace(/[$,\s]/g, '').toLowerCase();
+  
+  if (
+    cleaned.includes('unknown') || 
+    cleaned.includes('none') || 
+    cleaned.includes('undecided') || 
+    cleaned.includes('notsure') ||
+    cleaned === ''
+  ) {
+    return NaN;
+  }
+
+  // Handle ranges like "5000-10000" or "5k-10k"
   const rangeParts = cleaned.split(/[-–]/);
   if (rangeParts.length > 1) {
-    const nums = rangeParts.map(Number).filter((n) => !isNaN(n));
+    const nums = rangeParts.map(val => {
+      const kMatch = val.match(/^(\d+(?:\.\d+)?)[kK]$/);
+      if (kMatch) return parseFloat(kMatch[1]) * 1000;
+      return parseFloat(val);
+    }).filter((n) => !isNaN(n));
     return nums.length > 0 ? Math.max(...nums) : NaN;
   }
+
   // Handle "10k", "10K"
   const kMatch = cleaned.match(/^(\d+(?:\.\d+)?)[kK]$/);
   if (kMatch) return parseFloat(kMatch[1]) * 1000;
@@ -64,6 +81,7 @@ function calcIntentScore(formType: string, quantity: number, projectDetails?: st
 
 function calcEngagementScore(source: LeadFormData['source']): number {
   let score = 0;
+  if (!source) return 2;
   if (source.utm_source === 'google' && source.utm_medium === 'cpc') {
     score = 10;
   } else if (source.utm_source === 'google') {
@@ -82,6 +100,7 @@ export function scoreLead(data: LeadFormData): {
   score: number;
   scoreBreakdown: LeadScoreBreakdown;
   tier: LeadTier;
+  scoreReasons: string[];
 } {
   const budgetScore = calcBudgetScore(data.targetBudget);
   const categoryScore = calcCategoryScore(data.productCategory);
@@ -89,11 +108,45 @@ export function scoreLead(data: LeadFormData): {
   const engagementScore = calcEngagementScore(data.source);
 
   const score = Math.min(budgetScore + categoryScore + intentScore + engagementScore, 100);
-  const tier: LeadTier = score >= 70 ? 'hot' : score >= 40 ? 'warm' : 'cold';
+  
+  let tier: LeadTier = 'cold';
+  if (score >= 75) {
+    tier = 'hot';
+  } else if (score >= 50) {
+    tier = 'qualified';
+  } else if (score >= 30) {
+    tier = 'warm';
+  } else if (score >= 15) {
+    tier = 'cold';
+  } else {
+    tier = 'bad_fit';
+  }
+
+  const scoreReasons: string[] = [];
+  if (budgetScore >= 25) {
+    scoreReasons.push('High equipment budget ($5k+)');
+  } else if (budgetScore <= 7) {
+    scoreReasons.push('Low budget allocation');
+  }
+
+  if (categoryScore >= 23) {
+    scoreReasons.push('Premium/highly-demanded equipment type');
+  } else if (categoryScore <= 8) {
+    scoreReasons.push('Utility/accessory equipment category');
+  }
+
+  if (intentScore >= 20) {
+    scoreReasons.push('Formal quote request submission');
+  }
+
+  if (data.source && (data.source.gclid || (data.source.utm_source === 'google' && data.source.utm_medium === 'cpc'))) {
+    scoreReasons.push('Acquired via Google Ads CPC campaign');
+  }
 
   return {
     score,
     scoreBreakdown: { budgetScore, categoryScore, intentScore, engagementScore },
     tier,
+    scoreReasons,
   };
 }

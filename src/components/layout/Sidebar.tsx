@@ -10,6 +10,7 @@ import {
   Settings as SettingsIcon,
   LogOut,
   ShieldAlert,
+  Database,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -26,6 +27,7 @@ export const Sidebar: React.FC = () => {
     { to: '/tasks', label: 'Tasks', icon: CheckSquare, exact: false },
     { to: '/reports', label: 'Reports', icon: BarChart3, exact: false },
     { to: '/settings', label: 'Settings', icon: SettingsIcon, exact: false },
+    { to: '/sql-connect', label: 'SQL Connect', icon: Database, exact: false },
   ];
 
   return (

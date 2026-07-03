@@ -16,7 +16,7 @@ export interface CRMUser {
 }
 
 /** Task priority levels */
-export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
 
 /** Task status */
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
