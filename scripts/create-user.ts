@@ -27,7 +27,7 @@
 // link printed to stdout, which they can use to set their password.
 // ============================================================
 
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import * as readline from 'readline';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -40,6 +40,7 @@ function parseArgs(): {
   role: Role;
   name: string;
   phone?: string;
+  password?: string;
 } {
   const args = process.argv.slice(2);
   const get = (flag: string): string | undefined => {
@@ -51,10 +52,11 @@ function parseArgs(): {
   const roleRaw = get('--role') ?? 'sales_rep';
   const name = get('--name') ?? '';
   const phone = get('--phone');
+  const password = get('--password');
 
   if (!email) {
     console.error('\n❌ --email is required.\n');
-    console.error('Usage: tsx scripts/create-user.ts --email user@example.com --role admin --name "Full Name"\n');
+    console.error('Usage: tsx scripts/create-user.ts --email user@example.com --role admin --name "Full Name" [--password "secret"]\n');
     process.exit(1);
   }
 
@@ -64,7 +66,7 @@ function parseArgs(): {
     process.exit(1);
   }
 
-  return { email, role: roleRaw as Role, name, phone };
+  return { email, role: roleRaw as Role, name, phone, password };
 }
 
 // ── Prompt helper ─────────────────────────────────────────────
@@ -80,7 +82,7 @@ async function confirm(question: string): Promise<boolean> {
 
 // ── Main ──────────────────────────────────────────────────────
 async function main(): Promise<void> {
-  const { email, role, name, phone } = parseArgs();
+  const { email, role, name, phone, password } = parseArgs();
 
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  HT CRM — Create New User');
@@ -89,6 +91,7 @@ async function main(): Promise<void> {
   console.log(`  Role   : ${role}`);
   console.log(`  Name   : ${name || '(not set)'}`);
   if (phone) console.log(`  Phone  : ${phone}`);
+  if (password) console.log(`  Password: [set]`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   const ok = await confirm('Create this user in Firebase Auth + Firestore?');
@@ -155,19 +158,22 @@ async function main(): Promise<void> {
 
   if (existingUid) {
     uid = existingUid;
-    // Update display name if provided
-    if (name) {
-      await auth.updateUser(uid, { displayName: name });
+    const updateParams: any = {};
+    if (name) updateParams.displayName = name;
+    if (password) updateParams.password = password;
+    if (Object.keys(updateParams).length > 0) {
+      await auth.updateUser(uid, updateParams);
     }
+    console.log(`✅ Firebase Auth user updated: ${uid}`);
   } else {
     // ── Step 2: Create the Firebase Auth user ──────────────
-    // No password set — we'll generate a password-reset link instead
     const userRecord = await auth.createUser({
       email,
       displayName: name || undefined,
       phoneNumber: phone || undefined,
       emailVerified: false,
       disabled: false,
+      password: password || undefined,
     });
 
     uid = userRecord.uid;
@@ -204,16 +210,20 @@ async function main(): Promise<void> {
   await db.collection('users').doc(uid).set(profileData, { merge: true });
   console.log(`✅ Firestore /users/${uid} profile written`);
 
-  // ── Step 5: Generate password-reset link ──────────────────
-  const resetLink = await auth.generatePasswordResetLink(email);
+  // ── Step 5: Password Link / Confirmation ──────────────────
   console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('  ✅ User created successfully!\n');
   console.log(`  UID    : ${uid}`);
   console.log(`  Email  : ${email}`);
   console.log(`  Role   : ${role}`);
-  console.log('\n  🔗 Password Reset Link (send this to the user):');
-  console.log(`  ${resetLink}`);
-  console.log('\n  ⚠️  This link expires in 1 hour.');
+  if (password) {
+    console.log(`  Password: Set successfully (direct login enabled).`);
+  } else {
+    const resetLink = await auth.generatePasswordResetLink(email);
+    console.log('\n  🔗 Password Reset Link (send this to the user):');
+    console.log(`  ${resetLink}`);
+    console.log('\n  ⚠️  This link expires in 1 hour.');
+  }
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
   console.log('  ℹ️  The user must sign in ONCE after setting their password');
