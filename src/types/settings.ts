@@ -45,6 +45,7 @@ export interface AppSettings {
     sendgrid: IntegrationConfig;
     twilio: IntegrationConfig;
     openai: IntegrationConfig;
+    gemini?: IntegrationConfig;
   };
   dealStages: string[];
   productCategories: string[];

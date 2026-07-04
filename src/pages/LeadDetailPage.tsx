@@ -33,8 +33,10 @@ export const LeadDetailPage: React.FC = () => {
   const [isLostModalOpen, setIsLostModalOpen] = useState(false);
   const [lostReason, setLostReason] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [aiEmailDraft, setAiEmailDraft] = useState<string | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
-  const { lead, events, notes, tasks, loading, updateStage, addNote, createTask, updateTaskStatus,
+  const { lead, events, notes, tasks, loading, updateLead, updateStage, addNote, createTask, updateTaskStatus,
     markLeadContacted, markQuoteSent, markLeadWon, markLeadLost } = useLeadDetail(id || '');
 
   if (loading) {
@@ -130,6 +132,56 @@ export const LeadDetailPage: React.FC = () => {
       setTaskDesc('');
     } catch {
       error('Failed to schedule task');
+    }
+  };
+
+  const handleGenerateAISummary = async () => {
+    if (!lead) return;
+    setActionLoading('aiSummary');
+    try {
+      const res = await fetch('/api/ai/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'analyze_lead', lead })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await updateLead({
+          aiSummary: data.aiSummary,
+          aiNextAction: data.aiNextAction,
+        });
+        success('Gemini 1.5 Flash generated new AI summary & next action!');
+      } else {
+        throw new Error(data.error || 'Failed to generate summary');
+      }
+    } catch (err: any) {
+      error(err.message || 'Error communicating with Gemini AI.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDraftAIEmail = async () => {
+    if (!lead) return;
+    setActionLoading('aiEmail');
+    try {
+      const res = await fetch('/api/ai/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'draft_email', lead })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.emailDraft) {
+        setAiEmailDraft(data.emailDraft);
+        setIsEmailModalOpen(true);
+        success('Gemini 1.5 Flash drafted custom quote email!');
+      } else {
+        throw new Error(data.error || 'Failed to draft email');
+      }
+    } catch (err: any) {
+      error(err.message || 'Error communicating with Gemini AI.');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -376,13 +428,25 @@ export const LeadDetailPage: React.FC = () => {
               {lead.aiNextAction || 'Call immediately to verify electrical specifications and issue formal PO proposal.'}
             </div>
             <div className="space-y-2 pt-2">
-              <Button variant="secondary" size="sm" disabled className="w-full justify-center opacity-60">
-                <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                <span>Generate AI Summary (Coming Soon)</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleGenerateAISummary}
+                disabled={actionLoading === 'aiSummary'}
+                className="w-full justify-center bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 font-semibold"
+              >
+                <Sparkles className={`w-3.5 h-3.5 text-purple-400 ${actionLoading === 'aiSummary' ? 'animate-spin' : ''}`} />
+                <span>{actionLoading === 'aiSummary' ? 'Analyzing with Gemini...' : 'Generate Gemini AI Summary'}</span>
               </Button>
-              <Button variant="secondary" size="sm" disabled className="w-full justify-center opacity-60">
-                <Mail className="w-3.5 h-3.5 text-blue-400" />
-                <span>Draft Quote Reply Email (Coming Soon)</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleDraftAIEmail}
+                disabled={actionLoading === 'aiEmail'}
+                className="w-full justify-center bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 font-semibold"
+              >
+                <Mail className={`w-3.5 h-3.5 text-blue-400 ${actionLoading === 'aiEmail' ? 'animate-bounce' : ''}`} />
+                <span>{actionLoading === 'aiEmail' ? 'Drafting Email...' : 'Draft Quote Reply Email'}</span>
               </Button>
             </div>
           </div>
@@ -484,6 +548,33 @@ export const LeadDetailPage: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Gemini AI Email Draft Modal */}
+      <Modal isOpen={isEmailModalOpen} onClose={() => setIsEmailModalOpen(false)} title="Gemini 1.5 Flash — Drafted Reply" size="md">
+        <div className="space-y-4">
+          <div className="bg-surface-950 p-4 rounded-lg border border-surface-800 text-xs text-surface-200 font-mono whitespace-pre-wrap max-h-96 overflow-y-auto leading-relaxed select-all">
+            {aiEmailDraft}
+          </div>
+          <div className="flex justify-end gap-3 pt-3 border-t border-surface-800">
+            <Button type="button" variant="ghost" onClick={() => setIsEmailModalOpen(false)}>Close</Button>
+            <Button
+              type="button"
+              variant="primary"
+              className="bg-brand-600 hover:bg-brand-500 text-white"
+              onClick={() => {
+                if (aiEmailDraft) {
+                  navigator.clipboard.writeText(aiEmailDraft);
+                  success('Email draft copied to clipboard!');
+                  setIsEmailModalOpen(false);
+                }
+              }}
+            >
+              <FileText className="w-4 h-4" />
+              Copy to Clipboard
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

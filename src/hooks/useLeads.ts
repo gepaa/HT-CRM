@@ -21,6 +21,7 @@ interface UseLeadsResult {
   markQuoteSent: (leadId: string) => Promise<void>;
   markLeadWon: (leadId: string, wonRevenue?: number) => Promise<void>;
   markLeadLost: (leadId: string, lostReason?: string) => Promise<void>;
+  updateLeadAI: (leadId: string, aiSummary: string, aiNextAction: string) => Promise<void>;
 }
 
 export function useLeads(filters?: LeadFilters): UseLeadsResult {
@@ -91,6 +92,10 @@ export function useLeads(filters?: LeadFilters): UseLeadsResult {
     return leadService.markLeadLost(leadId, lostReason);
   }, []);
 
+  const updateLeadAI = useCallback(async (leadId: string, aiSummary: string, aiNextAction: string) => {
+    return leadService.updateLeadAI(leadId, aiSummary, aiNextAction);
+  }, []);
+
   return {
     leads,
     loading,
@@ -101,5 +106,6 @@ export function useLeads(filters?: LeadFilters): UseLeadsResult {
     markQuoteSent,
     markLeadWon,
     markLeadLost,
+    updateLeadAI,
   };
 }

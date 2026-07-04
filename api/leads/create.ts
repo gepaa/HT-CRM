@@ -6,6 +6,7 @@ import { leadFormDataSchema } from '../lib/validation';
 import { scoreLead } from '../lib/scoring';
 import { calculateSLADeadline } from '../lib/sla';
 import { getAutoAssignee } from '../lib/autoAssign';
+import { analyzeLeadWithGemini } from '../lib/gemini';
 
 export default async function handler(req: any, res: any) {
   // CORS Headers
@@ -76,6 +77,18 @@ export default async function handler(req: any, res: any) {
 
     const resolvedAssignee: string | null = data.assignedTo || (await getAutoAssignee());
 
+    const { aiSummary, aiNextAction } = await analyzeLeadWithGemini({
+      firstName: data.firstName,
+      lastName: data.lastName,
+      company: data.company,
+      productCategory: data.productCategory,
+      quantity: data.quantity,
+      targetBudget: data.targetBudget,
+      projectDetails: data.projectDetails,
+      tier,
+      score,
+    });
+
     const nowIso = new Date().toISOString();
     const slaIso = slaDeadline.toISOString();
 
@@ -109,8 +122,8 @@ export default async function handler(req: any, res: any) {
       last_contacted_at: null,
       is_overdue: false,
       shopify_customer_id: null,
-      ai_summary: `${tier.toUpperCase()} lead interested in ${data.quantity}x ${data.productCategory}.`,
-      ai_next_action: 'Follow up via phone or email.',
+      ai_summary: aiSummary,
+      ai_next_action: aiNextAction,
       tags: [
         data.productCategory.toLowerCase().replace(/\s+/g, '-'),
         tier,

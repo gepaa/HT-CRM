@@ -55,9 +55,9 @@ const INTEGRATIONS_LIST = [
     color: 'text-red-400 bg-red-500/10 border-red-500/20',
   },
   {
-    id: 'openai',
-    name: 'OpenAI GPT-4o Assistant',
-    description: 'Generate automated executive lead summaries and AI-suggested next actions.',
+    id: 'gemini',
+    name: 'Google Gemini 1.5 Flash (Free Tier)',
+    description: 'Ultra-fast, free tier AI assistant generating automated executive lead summaries, next actions, and quote emails.',
     icon: Sparkles,
     color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
   },
@@ -299,6 +299,7 @@ export default function SettingsPage() {
           {INTEGRATIONS_LIST.map((item) => {
             const IconComponent = item.icon;
             const isShopify = item.id === 'shopify';
+            const isGemini = item.id === 'gemini';
             return (
               <div
                 key={item.id}
@@ -316,6 +317,11 @@ export default function SettingsPage() {
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           Active — Webhook Live
                         </span>
+                      ) : isGemini ? (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                          Active — Gemini 1.5 Flash Live
+                        </span>
                       ) : (
                         <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-surface-850 text-surface-400 border border-surface-800">
                           Not Connected
@@ -332,11 +338,20 @@ export default function SettingsPage() {
                 {isShopify ? (
                   <div className="pt-2 border-t border-surface-850 space-y-2">
                     <p className="text-[10px] text-surface-500 font-mono break-all">
-                      Webhook URL: https://ht-crm-3957c.web.app/shopify-webhook
+                      Webhook URL: https://your-domain.vercel.app/api/shopifyWebhook
                     </p>
                     <p className="text-[10px] text-surface-500 font-mono break-all">
                       Topics: customers/create · draft_orders/create · orders/create
                     </p>
+                  </div>
+                ) : isGemini ? (
+                  <div className="pt-2 border-t border-surface-850 flex items-center justify-between">
+                    <span className="text-[11px] font-extrabold uppercase text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">
+                      Free Tier Enabled
+                    </span>
+                    <span className="text-[10px] text-surface-400 font-medium font-mono">
+                      model: gemini-1.5-flash
+                    </span>
                   </div>
                 ) : (
                   <div className="pt-2 border-t border-surface-850 flex items-center justify-between">

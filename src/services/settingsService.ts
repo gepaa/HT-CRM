@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     sendgrid: { enabled: false },
     twilio: { enabled: false },
     openai: { enabled: false },
+    gemini: { enabled: true },
   },
   dealStages: ['new', 'quoted', 'negotiation', 'won', 'lost'],
   productCategories: [...PRODUCT_CATEGORIES] as unknown as string[],

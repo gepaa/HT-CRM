@@ -367,4 +367,14 @@ export const leadService = {
       console.warn('Failed to log lost event:', e);
     }
   },
+
+  /**
+   * Update AI generated summary and next action in Supabase.
+   */
+  async updateLeadAI(leadId: string, aiSummary: string, aiNextAction: string): Promise<void> {
+    await this.safeUpdate(leadId, {
+      aiSummary,
+      aiNextAction,
+    });
+  },
 };
