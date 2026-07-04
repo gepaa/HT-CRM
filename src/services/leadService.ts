@@ -339,6 +339,19 @@ export const leadService = {
     } catch (e) {
       console.warn('Failed to log won event:', e);
     }
+
+    // Trigger Google Ads offline conversion upload asynchronously
+    try {
+      fetch(getApiRouteUrl('/google/uploadConversion'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, wonRevenue }),
+      }).catch((err) => {
+        console.warn('Asynchronous Google Ads conversion upload trigger failed:', err);
+      });
+    } catch (e) {
+      console.warn('Failed to dispatch Google Ads conversion upload:', e);
+    }
   },
 
   /**

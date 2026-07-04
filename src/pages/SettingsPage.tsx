@@ -24,6 +24,7 @@ import {
   CATEGORY_TIERS,
 } from '../lib/constants';
 import { useSettings } from '../hooks/useSettings';
+import { getApiRouteUrl } from '../config/supabase';
 
 const INTEGRATIONS_LIST = [
   {
@@ -70,6 +71,15 @@ export default function SettingsPage() {
   const [coldMinutes, setColdMinutes] = useState(DEFAULT_SLA_CONFIG.coldLeadMinutes);
   const [saved, setSaved] = useState(false);
 
+  // Google OAuth & Ads States
+  const [googleAdsCustomerId, setGoogleAdsCustomerId] = useState('');
+  const [googleAdsDeveloperToken, setGoogleAdsDeveloperToken] = useState('');
+  const [googleAdsConversionAction, setGoogleAdsConversionAction] = useState('Lead Conversion');
+  const [googleStatus, setGoogleStatus] = useState<string | null>(null);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [isSavingGoogleAds, setIsSavingGoogleAds] = useState(false);
+  const [isDisconnectingGoogle, setIsDisconnectingGoogle] = useState(false);
+
   useEffect(() => {
     if (settings?.sla) {
       if (settings.sla.hotLeadMinutes !== undefined) setHotMinutes(settings.sla.hotLeadMinutes);
@@ -77,6 +87,89 @@ export default function SettingsPage() {
       if (settings.sla.coldLeadMinutes !== undefined) setColdMinutes(settings.sla.coldLeadMinutes);
     }
   }, [settings]);
+
+  useEffect(() => {
+    const googleAds = settings?.integrations?.googleAds;
+    if (googleAds) {
+      if (googleAds.customerId !== undefined) setGoogleAdsCustomerId(googleAds.customerId || '');
+      if (googleAds.developerToken !== undefined) setGoogleAdsDeveloperToken(googleAds.developerToken || '');
+      if (googleAds.conversionAction !== undefined) setGoogleAdsConversionAction(googleAds.conversionAction || 'Lead Conversion');
+    }
+  }, [settings]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleParam = params.get('google');
+    const msgParam = params.get('msg');
+    
+    if (googleParam === 'connected') {
+      setGoogleStatus('Google Account successfully connected!');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => setGoogleStatus(null), 5000);
+    } else if (googleParam === 'error') {
+      setGoogleError(msgParam || 'Failed to connect Google Account.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => setGoogleError(null), 8000);
+    }
+  }, []);
+
+  const handleSaveGoogleAds = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingGoogleAds(true);
+    try {
+      const currentGoogleAds = settings.integrations?.googleAds || {};
+      await updateSettings({
+        integrations: {
+          ...settings.integrations,
+          googleAds: {
+            ...currentGoogleAds,
+            customerId: googleAdsCustomerId,
+            developerToken: googleAdsDeveloperToken,
+            conversionAction: googleAdsConversionAction,
+          }
+        }
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: any) {
+      setGoogleError(err.message || 'Failed to save Google Ads settings.');
+      setTimeout(() => setGoogleError(null), 5000);
+    } finally {
+      setIsSavingGoogleAds(false);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    if (!window.confirm('Are you sure you want to disconnect your Google Account? This will clear all connection tokens.')) {
+      return;
+    }
+    setIsDisconnectingGoogle(true);
+    try {
+      await updateSettings({
+        integrations: {
+          ...settings.integrations,
+          googleAds: {
+            enabled: false,
+            customerId: '',
+            developerToken: '',
+            conversionAction: 'Lead Conversion',
+            tokens: null,
+            email: '',
+          }
+        }
+      });
+      setGoogleStatus('Google Account disconnected.');
+      setGoogleAdsCustomerId('');
+      setGoogleAdsDeveloperToken('');
+      setGoogleAdsConversionAction('Lead Conversion');
+      setTimeout(() => setGoogleStatus(null), 3000);
+    } catch (err: any) {
+      setGoogleError(err.message || 'Failed to disconnect Google Account.');
+      setTimeout(() => setGoogleError(null), 5000);
+    } finally {
+      setIsDisconnectingGoogle(false);
+    }
+  };
 
   const handleSaveSLA = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,6 +195,19 @@ export default function SettingsPage() {
           Configure SLA targets, operating hours, product catalogue tiers, and third-party API integrations.
         </p>
       </div>
+
+      {googleStatus && (
+        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-xs font-semibold animate-fade-in flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{googleStatus}</span>
+        </div>
+      )}
+      {googleError && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs font-semibold animate-fade-in flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+          <span>{googleError}</span>
+        </div>
+      )}
 
       {/* 1. SLA CONFIGURATION */}
       <div className="bg-surface-900 border border-surface-800 rounded-xl p-6 shadow-sm space-y-6">
@@ -300,6 +406,8 @@ export default function SettingsPage() {
             const IconComponent = item.icon;
             const isShopify = item.id === 'shopify';
             const isGemini = item.id === 'gemini';
+            const isGoogleAds = item.id === 'google_ads';
+            
             return (
               <div
                 key={item.id}
@@ -321,6 +429,11 @@ export default function SettingsPage() {
                         <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/20 text-purple-400 border border-purple-500/30">
                           <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
                           Active — Gemini 1.5 Flash Live
+                        </span>
+                      ) : isGoogleAds && settings.integrations?.googleAds?.enabled ? (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Active — Account Connected
                         </span>
                       ) : (
                         <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-surface-850 text-surface-400 border border-surface-800">
@@ -353,6 +466,95 @@ export default function SettingsPage() {
                       model: gemini-1.5-flash
                     </span>
                   </div>
+                ) : isGoogleAds ? (
+                  settings.integrations?.googleAds?.enabled ? (
+                    <div className="pt-2 border-t border-surface-850 space-y-3.5">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-surface-300 font-medium">
+                          Email: <strong className="text-white font-semibold font-mono">{settings.integrations.googleAds.email}</strong>
+                        </span>
+                        {settings.integrations.googleAds.connectedAt && (
+                          <span className="text-[10px] text-surface-500">
+                            Connected on: {new Date(settings.integrations.googleAds.connectedAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+
+                      <form onSubmit={handleSaveGoogleAds} className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-extrabold uppercase text-surface-400 tracking-wider">
+                            Google Ads Customer ID
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 123-456-7890"
+                            value={googleAdsCustomerId}
+                            onChange={(e) => setGoogleAdsCustomerId(e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-surface-900 border border-surface-750 rounded-lg text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-extrabold uppercase text-surface-400 tracking-wider">
+                            Conversion Action Name
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Lead Conversion"
+                            value={googleAdsConversionAction}
+                            onChange={(e) => setGoogleAdsConversionAction(e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-surface-900 border border-surface-750 rounded-lg text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-extrabold uppercase text-surface-400 tracking-wider">
+                            Developer Token (or 'simulate')
+                          </label>
+                          <input
+                            type="password"
+                            placeholder="Developer Token"
+                            value={googleAdsDeveloperToken}
+                            onChange={(e) => setGoogleAdsDeveloperToken(e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-surface-900 border border-surface-750 rounded-lg text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="submit"
+                            disabled={isSavingGoogleAds}
+                            className="flex-1 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white text-[11px] font-bold rounded-lg transition-colors border border-brand-500/20 disabled:opacity-50"
+                          >
+                            {isSavingGoogleAds ? 'Saving...' : 'Save Settings'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isDisconnectingGoogle}
+                            onClick={handleDisconnectGoogle}
+                            className="px-3 py-1.5 bg-surface-800 hover:bg-red-500/10 hover:text-red-400 text-surface-300 text-[11px] font-bold rounded-lg transition-colors border border-surface-700 hover:border-red-500/30 disabled:opacity-50"
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  ) : (
+                    <div className="pt-2 border-t border-surface-850 flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold uppercase text-surface-400 bg-surface-900/50 px-2 py-0.5 border border-surface-800 rounded">
+                        Not Connected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.href = getApiRouteUrl('/google/auth');
+                        }}
+                        className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold border border-blue-500 transition-colors cursor-pointer shadow-sm shadow-blue-500/25 active:scale-[0.98] transform"
+                      >
+                        Connect
+                      </button>
+                    </div>
+                  )
                 ) : (
                   <div className="pt-2 border-t border-surface-850 flex items-center justify-between">
                     <span className="text-[11px] font-extrabold uppercase text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded">
