@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import type { Request, Response } from 'firebase-functions/v1';
 import cors from 'cors';
-import { admin, db } from '../firebaseAdmin';
+import { supabase } from '../lib/supabaseAdmin';
 import { leadFormDataSchema } from '../lib/validation';
 import { scoreLead } from '../lib/scoring';
 import { calculateSLADeadline } from '../lib/sla';
@@ -121,65 +121,69 @@ export const leadCaptureHandler = (req: Request, res: Response): void => {
       // Resolve assignee: use form value, or auto-assign to least-busy rep
       const resolvedAssignee: string | null = data.assignedTo || (await getAutoAssignee());
 
-      // Create the lead document
-      const leadRef = db.collection('leads').doc();
-      const lead = {
-        firstName: data.firstName,
-        lastName: data.lastName,
+      // Create the lead document in Supabase
+      const nowIso = new Date().toISOString();
+      const slaIso = slaDeadline.toISOString();
+
+      const leadRow = {
+        first_name: data.firstName,
+        last_name: data.lastName,
         email: data.email.toLowerCase(),
         phone: data.phone || null,
         company: data.company || null,
-        deliveryZip: data.deliveryZip || null,
-        productCategory: data.productCategory,
-        category: data.productCategory,
-        productTitle,
-        productPrice: numericProductPrice,
+        delivery_zip: data.deliveryZip || null,
+        product_category: data.productCategory,
+        product_title: productTitle,
+        product_price: numericProductPrice,
         quantity: data.quantity,
-        targetBudget: data.targetBudget,
+        target_budget: data.targetBudget,
         timeline: data.timeline || null,
-        projectDetails: data.projectDetails || null,
+        project_details: data.projectDetails || null,
         source,
-        formType: data.formType,
+        form_type: data.formType,
         score,
-        leadScore: score,
-        scoreBreakdown,
-        scoreReasons,
+        lead_score: score,
+        score_breakdown: scoreBreakdown,
         tier,
         stage: 'new',
         status: 'new',
-        assignedTo: resolvedAssignee,
-        slaDeadline: admin.firestore.Timestamp.fromDate(slaDeadline),
-        slaDeadlineAt: admin.firestore.Timestamp.fromDate(slaDeadline),
-        slaStatus: 'ok',
-        contactedAt: null,
-        lastContactedAt: null,
-        nextFollowUpAt: admin.firestore.Timestamp.fromDate(slaDeadline),
-        isOverdue: false,
-        shopifyCustomerId: null,
-        shopifyCustomerGid: null,
-        shopifyDraftOrderId: null,
-        shopifyDraftOrderIds: [],
-        shopifyOrderId: null,
-        shopifyOrderIds: [],
-        shopifyShopDomain: null,
-        aiSummary: `${tier.toUpperCase()} lead interested in ${data.quantity}x ${data.productCategory}.`,
-        aiNextAction: 'Follow up via phone or email.',
+        assigned_to: resolvedAssignee,
+        sla_deadline: slaIso,
+        sla_deadline_at: slaIso,
+        sla_status: 'ok',
+        contacted_at: null,
+        last_contacted_at: null,
+        is_overdue: false,
+        shopify_customer_id: null,
+        ai_summary: `${tier.toUpperCase()} lead interested in ${data.quantity}x ${data.productCategory}.`,
+        ai_next_action: 'Follow up via phone or email.',
         tags: [
           data.productCategory.toLowerCase().replace(/\s+/g, '-'),
           tier,
           sourceTag,
         ],
-        estimatedDealValue,
-        wonRevenue: null,
-        lostReason: null,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        estimated_deal_value: estimatedDealValue,
+        created_at: nowIso,
+        updated_at: nowIso,
       };
 
-      await leadRef.set(lead);
+      const { data: insertedLeads, error: insertErr } = await supabase
+        .from('leads')
+        .insert(leadRow)
+        .select('id')
+        .single();
 
-      // Create "created" event in subcollection
-      await leadRef.collection('events').add({
+      if (insertErr || !insertedLeads) {
+        functions.logger.error('Error inserting lead into Supabase:', insertErr);
+        res.status(500).json({ error: 'Failed to create lead in database' });
+        return;
+      }
+
+      const leadId = insertedLeads.id;
+
+      // Create "created" event in lead_events table
+      await supabase.from('lead_events').insert({
+        lead_id: leadId,
         type: 'created',
         description: `New ${data.formType} lead from ${data.firstName} ${data.lastName}`,
         metadata: {
@@ -189,8 +193,8 @@ export const leadCaptureHandler = (req: Request, res: Response): void => {
           score,
           tier,
         },
-        createdBy: 'system',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        created_by: 'system',
+        created_at: nowIso,
       });
 
       // Auto-create task for hot and warm leads
@@ -200,37 +204,38 @@ export const leadCaptureHandler = (req: Request, res: Response): void => {
           ? `🔥 URGENT: Call ${data.firstName} ${data.lastName} — ${data.productCategory} ($${data.targetBudget})`
           : `Follow up with ${data.firstName} ${data.lastName} — ${data.productCategory}`;
 
-        await db.collection('tasks').add({
-          leadId: leadRef.id,
+        await supabase.from('tasks').insert({
+          lead_id: leadId,
           title: taskTitle,
           description: `Auto-generated: ${data.formType} request for ${data.productCategory}. Budget: ${data.targetBudget}. ${data.projectDetails || ''}`,
           type: 'follow_up',
           priority: taskPriority,
           status: 'pending',
-          dueAt: admin.firestore.Timestamp.fromDate(slaDeadline),
-          dueDate: admin.firestore.Timestamp.fromDate(slaDeadline),
-          assignedTo: resolvedAssignee || '',
-          isAutoGenerated: true,
-          completedAt: null,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          due_at: slaIso,
+          due_date: slaIso,
+          assigned_to: resolvedAssignee || '',
+          is_auto_generated: true,
+          completed_at: null,
+          created_at: nowIso,
+          updated_at: nowIso,
         });
 
         // Log the auto-task creation event
-        await leadRef.collection('events').add({
+        await supabase.from('lead_events').insert({
+          lead_id: leadId,
           type: 'task_created',
           description: `Auto-created ${taskPriority} follow-up task`,
           metadata: { priority: taskPriority, tier },
-          createdBy: 'system',
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          created_by: 'system',
+          created_at: nowIso,
         });
       }
 
-      functions.logger.info(`Lead created: ${leadRef.id}, score: ${score}, tier: ${tier}`);
+      functions.logger.info(`Lead created: ${leadId}, score: ${score}, tier: ${tier}`);
 
       res.status(201).json({
         success: true,
-        id: leadRef.id,
+        id: leadId,
         score,
         scoreBreakdown,
         tier,

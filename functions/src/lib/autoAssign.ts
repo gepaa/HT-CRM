@@ -1,20 +1,19 @@
 // ─────────────────────────────────────────────────────────────
-// Auto-Assignment — HT CRM Cloud Functions
+// Auto-Assignment — HT CRM Cloud Functions (Supabase)
 // ─────────────────────────────────────────────────────────────
 // Implements a simple round-robin assignment strategy:
-//   1. Query users collection for active sales_rep role users
+//   1. Query users table for active sales_rep role users
 //   2. Pick the rep with the fewest assigned open leads
 //   3. Fall back to the first admin if no reps are active
 //   4. Return null if no eligible user is found (manual assignment required)
 // ─────────────────────────────────────────────────────────────
 import * as functions from 'firebase-functions';
-import { db } from '../firebaseAdmin';
+import { supabase } from './supabaseAdmin';
 
 interface SalesRep {
   uid: string;
   displayName?: string;
   role: string;
-  isActive?: boolean;
 }
 
 /**
@@ -28,32 +27,36 @@ interface SalesRep {
 export async function getAutoAssignee(): Promise<string | null> {
   try {
     // 1. Fetch all active sales reps
-    const repSnapshot = await db
-      .collection('users')
-      .where('role', '==', 'sales_rep')
-      .where('isActive', '==', true)
-      .get();
+    const { data: repDocs, error: repErr } = await supabase
+      .from('users')
+      .select('*')
+      .eq('role', 'sales_rep');
 
-    let candidates: SalesRep[] = repSnapshot.docs.map((d) => ({
-      uid: d.id,
-      displayName: d.data().displayName,
-      role: d.data().role,
-      isActive: d.data().isActive,
+    if (repErr) {
+      functions.logger.error('auto-assign: Error fetching sales reps from Supabase:', repErr);
+    }
+
+    let candidates: SalesRep[] = (repDocs || []).map((d) => ({
+      uid: d.uid || d.id,
+      displayName: d.display_name,
+      role: d.role,
     }));
 
     // Fall back to admin users if no active reps
     if (candidates.length === 0) {
-      const adminSnapshot = await db
-        .collection('users')
-        .where('role', '==', 'admin')
-        .where('isActive', '==', true)
-        .get();
+      const { data: adminDocs, error: adminErr } = await supabase
+        .from('users')
+        .select('*')
+        .eq('role', 'admin');
 
-      candidates = adminSnapshot.docs.map((d) => ({
-        uid: d.id,
-        displayName: d.data().displayName,
-        role: d.data().role,
-        isActive: d.data().isActive,
+      if (adminErr) {
+        functions.logger.error('auto-assign: Error fetching admins from Supabase:', adminErr);
+      }
+
+      candidates = (adminDocs || []).map((d) => ({
+        uid: d.uid || d.id,
+        displayName: d.display_name,
+        role: d.role,
       }));
     }
 
@@ -67,15 +70,16 @@ export async function getAutoAssignee(): Promise<string | null> {
     }
 
     // 2. Count all assigned leads per candidate (open + closed).
-    // Simple single-field query — no composite index required.
-    // Sufficient for load-balancing; closed leads age out naturally.
     const loadCounts = await Promise.all(
       candidates.map(async (rep) => {
-        const snapshot = await db
-          .collection('leads')
-          .where('assignedTo', '==', rep.uid)
-          .get();
-        return { uid: rep.uid, count: snapshot.size };
+        const { count, error } = await supabase
+          .from('leads')
+          .select('id', { count: 'exact', head: true })
+          .eq('assigned_to', rep.uid);
+        if (error) {
+          functions.logger.error(`auto-assign: Error counting leads for ${rep.uid}:`, error);
+        }
+        return { uid: rep.uid, count: count || 0 };
       })
     );
 

@@ -1,6 +1,6 @@
 import * as functions from 'firebase-functions';
 import type { Request, Response } from 'firebase-functions/v1';
-import { admin, db } from '../firebaseAdmin';
+import { supabase } from '../lib/supabaseAdmin';
 import { calculateSLADeadline } from '../lib/sla';
 import { scoreLead } from '../lib/scoring';
 import { verifyShopifyWebhook } from '../lib/shopify';
@@ -14,8 +14,8 @@ import {
 import { LeadFormData } from '../types/lead';
 
 type LeadMatch = {
-  ref: admin.firestore.DocumentReference;
-  data: admin.firestore.DocumentData;
+  id: string;
+  data: Record<string, any>;
 };
 
 type WebhookResult = {
@@ -94,55 +94,51 @@ function splitCustomerName(customer?: ShopifyCustomer | null, fallbackEmail?: st
 async function findLeadByShopifyCustomerId(customerId?: string | null): Promise<LeadMatch | null> {
   if (!customerId) return null;
 
-  const snapshot = await db
-    .collection('leads')
-    .where('shopifyCustomerId', '==', customerId)
-    .limit(1)
-    .get();
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('shopify_customer_id', customerId)
+    .limit(1);
 
-  if (snapshot.empty) return null;
-  const doc = snapshot.docs[0];
-  return { ref: doc.ref, data: doc.data() };
+  if (error || !data || data.length === 0) return null;
+  return { id: data[0].id, data: data[0] };
 }
 
 async function findLeadByEmail(email?: string | null): Promise<LeadMatch | null> {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return null;
 
-  const snapshot = await db
-    .collection('leads')
-    .where('email', '==', normalizedEmail)
-    .limit(1)
-    .get();
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('email', normalizedEmail)
+    .limit(1);
 
-  if (snapshot.empty) return null;
-  const doc = snapshot.docs[0];
-  return { ref: doc.ref, data: doc.data() };
+  if (error || !data || data.length === 0) return null;
+  return { id: data[0].id, data: data[0] };
 }
 
 async function findLeadByShopifyDraftOrderId(draftOrderId?: string | null): Promise<LeadMatch | null> {
   if (!draftOrderId) return null;
 
-  const arraySnapshot = await db
-    .collection('leads')
-    .where('shopifyDraftOrderIds', 'array-contains', draftOrderId)
-    .limit(1)
-    .get();
+  const { data: arrayData } = await supabase
+    .from('leads')
+    .select('*')
+    .contains('shopify_draft_order_ids', [draftOrderId])
+    .limit(1);
 
-  if (!arraySnapshot.empty) {
-    const doc = arraySnapshot.docs[0];
-    return { ref: doc.ref, data: doc.data() };
+  if (arrayData && arrayData.length > 0) {
+    return { id: arrayData[0].id, data: arrayData[0] };
   }
 
-  const scalarSnapshot = await db
-    .collection('leads')
-    .where('shopifyDraftOrderId', '==', draftOrderId)
-    .limit(1)
-    .get();
+  const { data: scalarData } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('shopify_draft_order_id', draftOrderId)
+    .limit(1);
 
-  if (scalarSnapshot.empty) return null;
-  const doc = scalarSnapshot.docs[0];
-  return { ref: doc.ref, data: doc.data() };
+  if (!scalarData || scalarData.length === 0) return null;
+  return { id: scalarData[0].id, data: scalarData[0] };
 }
 
 async function findLeadForCustomer(customer: ShopifyCustomer): Promise<LeadMatch | null> {
@@ -244,62 +240,92 @@ function createLeadInputFromDraftOrder(draftOrder: ShopifyDraftOrder): LeadFormD
 async function createLeadFromInput(input: LeadFormData, extra: Record<string, unknown>): Promise<LeadMatch> {
   const { score, scoreBreakdown, tier, scoreReasons } = scoreLead(input);
   const now = new Date();
+  const nowIso = now.toISOString();
   const slaDeadline = calculateSLADeadline(now, tier);
-  const leadRef = db.collection('leads').doc();
+  const slaIso = slaDeadline.toISOString();
 
   // Auto-assign to least-busy sales rep
   const assignedTo = await getAutoAssignee();
 
-  await leadRef.set({
-    ...input,
+  const productTitle = input.productTitle || `${input.quantity || 1}x ${input.productCategory}`;
+
+  const leadRow: Record<string, any> = {
+    first_name: input.firstName,
+    last_name: input.lastName,
     email: normalizeEmail(input.email),
+    phone: input.phone || null,
+    company: input.company || null,
+    delivery_zip: input.deliveryZip || null,
+    product_category: input.productCategory,
+    product_title: productTitle,
+    quantity: input.quantity || 1,
+    target_budget: input.targetBudget,
+    timeline: input.timeline || null,
+    project_details: input.projectDetails || null,
+    source: input.source || {},
+    form_type: input.formType,
     score,
-    scoreBreakdown,
-    scoreReasons,
+    lead_score: score,
+    score_breakdown: scoreBreakdown,
     tier,
     stage: 'new',
-    assignedTo,
-    slaDeadline: admin.firestore.Timestamp.fromDate(slaDeadline),
-    slaStatus: 'ok',
-    contactedAt: null,
-    shopifyCustomerId: null,
-    shopifyCustomerGid: null,
-    shopifyDraftOrderId: null,
-    shopifyDraftOrderIds: [],
-    shopifyOrderId: null,
-    shopifyOrderIds: [],
-    shopifyShopDomain: null,
-    aiSummary: null,
-    aiNextAction: null,
+    status: 'new',
+    assigned_to: assignedTo,
+    sla_deadline: slaIso,
+    sla_deadline_at: slaIso,
+    sla_status: 'ok',
+    contacted_at: null,
+    last_contacted_at: null,
+    is_overdue: false,
+    shopify_customer_id: (extra.shopifyCustomerId as string) || null,
+    shopify_customer_gid: (extra.shopifyCustomerGid as string) || null,
+    shopify_draft_order_id: (extra.shopifyDraftOrderId as string) || null,
+    shopify_draft_order_ids: Array.isArray(extra.shopifyDraftOrderIds) ? extra.shopifyDraftOrderIds : [],
+    shopify_order_id: (extra.shopifyOrderId as string) || null,
+    shopify_order_ids: Array.isArray(extra.shopifyOrderIds) ? extra.shopifyOrderIds : [],
+    shopify_shop_domain: (extra.shopifyShopDomain as string) || null,
+    ai_summary: null,
+    ai_next_action: null,
     tags: ['shopify'],
-    ...extra,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+    created_at: nowIso,
+    updated_at: nowIso,
+  };
 
-  await leadRef.collection('events').add({
+  const { data: inserted, error: insertErr } = await supabase
+    .from('leads')
+    .insert(leadRow)
+    .select('*')
+    .single();
+
+  if (insertErr || !inserted) {
+    functions.logger.error('Error inserting Shopify lead into Supabase:', insertErr);
+    throw new Error('Failed to insert lead into Supabase');
+  }
+
+  await supabase.from('lead_events').insert({
+    lead_id: inserted.id,
     type: 'created',
     description: `New Shopify lead created for ${input.firstName} ${input.lastName}`,
     metadata: { score, tier, source: 'shopify', assignedTo, ...extra },
-    createdBy: 'system',
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    created_by: 'system',
+    created_at: nowIso,
   });
 
-  const created = await leadRef.get();
-  return { ref: leadRef, data: created.data() || {} };
+  return { id: inserted.id, data: inserted };
 }
 
 async function addLeadEvent(
-  leadRef: admin.firestore.DocumentReference,
+  lead: LeadMatch,
   description: string,
   metadata: Record<string, unknown>,
 ) {
-  await leadRef.collection('events').add({
+  await supabase.from('lead_events').insert({
+    lead_id: lead.id,
     type: 'shopify_synced',
     description,
     metadata,
-    createdBy: 'system',
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    created_by: 'system',
+    created_at: new Date().toISOString(),
   });
 }
 
@@ -313,42 +339,50 @@ async function upsertDealForLead(params: {
   shopifyOrderId?: string | null;
   notes: string;
 }) {
-  const existingByLead = await db
-    .collection('deals')
-    .where('leadId', '==', params.lead.ref.id)
-    .limit(1)
-    .get();
+  const nowIso = new Date().toISOString();
+  const { data: existingByLead } = await supabase
+    .from('deals')
+    .select('id')
+    .eq('lead_id', params.lead.id)
+    .limit(1);
 
-  const updates = {
-    title: params.title,
-    leadId: params.lead.ref.id,
-    contactName: `${params.lead.data.firstName || ''} ${params.lead.data.lastName || ''}`.trim(),
-    value: params.value,
-    stage: params.stage,
-    probability: params.probability,
-    assignedTo: params.lead.data.assignedTo || 'system',
-    expectedCloseDate: null,
-    notes: params.notes,
-    shopifyDraftOrderId: params.shopifyDraftOrderId || null,
-    shopifyOrderId: params.shopifyOrderId || null,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
+  const contactName = `${params.lead.data.first_name || params.lead.data.firstName || ''} ${params.lead.data.last_name || params.lead.data.lastName || ''}`.trim();
 
-  if (existingByLead.empty) {
-    await db.collection('deals').add({
-      ...updates,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  if (!existingByLead || existingByLead.length === 0) {
+    await supabase.from('deals').insert({
+      title: params.title,
+      lead_id: params.lead.id,
+      contact_name: contactName,
+      value: params.value,
+      stage: params.stage,
+      probability: params.probability,
+      assigned_to: params.lead.data.assigned_to || params.lead.data.assignedTo || 'system',
+      expected_close_date: null,
+      notes: params.notes,
+      created_at: nowIso,
+      updated_at: nowIso,
     });
     return;
   }
 
-  await existingByLead.docs[0].ref.set(updates, { merge: true });
+  await supabase
+    .from('deals')
+    .update({
+      title: params.title,
+      value: params.value,
+      stage: params.stage,
+      probability: params.probability,
+      notes: params.notes,
+      updated_at: nowIso,
+    })
+    .eq('id', existingByLead[0].id);
 }
 
 async function processCustomerCreate(customer: ShopifyCustomer, shopDomain?: string): Promise<WebhookResult> {
   const shopifyCustomerId = stringId(customer.id);
   let lead = await findLeadForCustomer(customer);
   let action = 'linked_customer_to_existing_lead';
+  const nowIso = new Date().toISOString();
 
   if (!lead) {
     lead = await createLeadFromInput(createLeadInputFromCustomer(customer), {
@@ -359,23 +393,26 @@ async function processCustomerCreate(customer: ShopifyCustomer, shopDomain?: str
     action = 'created_lead_from_customer';
   }
 
-  await lead.ref.set({
-    email: normalizeEmail(customer.email) || lead.data.email,
-    firstName: customer.first_name || lead.data.firstName,
-    lastName: customer.last_name || lead.data.lastName,
-    phone: customer.phone || lead.data.phone || null,
-    shopifyCustomerId,
-    shopifyCustomerGid: customer.admin_graphql_api_id || lead.data.shopifyCustomerGid || null,
-    shopifyShopDomain: shopDomain || lead.data.shopifyShopDomain || null,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  await supabase
+    .from('leads')
+    .update({
+      email: normalizeEmail(customer.email) || lead.data.email,
+      first_name: customer.first_name || lead.data.first_name || lead.data.firstName,
+      last_name: customer.last_name || lead.data.last_name || lead.data.lastName,
+      phone: customer.phone || lead.data.phone || null,
+      shopify_customer_id: shopifyCustomerId,
+      shopify_customer_gid: customer.admin_graphql_api_id || lead.data.shopify_customer_gid || lead.data.shopifyCustomerGid || null,
+      shopify_shop_domain: shopDomain || lead.data.shopify_shop_domain || lead.data.shopifyShopDomain || null,
+      updated_at: nowIso,
+    })
+    .eq('id', lead.id);
 
-  await addLeadEvent(lead.ref, `Shopify customer ${shopifyCustomerId} synced`, {
+  await addLeadEvent(lead, `Shopify customer ${shopifyCustomerId} synced`, {
     shopifyCustomerId,
     shopifyShopDomain: shopDomain,
   });
 
-  return { leadId: lead.ref.id, shopifyCustomerId, action };
+  return { leadId: lead.id, shopifyCustomerId, action };
 }
 
 async function processDraftOrderCreate(draftOrder: ShopifyDraftOrder, shopDomain?: string): Promise<WebhookResult> {
@@ -383,6 +420,7 @@ async function processDraftOrderCreate(draftOrder: ShopifyDraftOrder, shopDomain
   const shopifyCustomerId = stringId(draftOrder.customer?.id);
   let lead = await findLeadForDraftOrder(draftOrder);
   let action = 'linked_draft_order_to_existing_lead';
+  const nowIso = new Date().toISOString();
 
   if (!lead) {
     lead = await createLeadFromInput(createLeadInputFromDraftOrder(draftOrder), {
@@ -394,16 +432,22 @@ async function processDraftOrderCreate(draftOrder: ShopifyDraftOrder, shopDomain
     action = 'created_lead_from_draft_order';
   }
 
-  await lead.ref.set({
-    stage: 'quoted',
-    shopifyCustomerId: shopifyCustomerId || lead.data.shopifyCustomerId || null,
-    shopifyDraftOrderId,
-    shopifyDraftOrderIds: shopifyDraftOrderId
-      ? admin.firestore.FieldValue.arrayUnion(shopifyDraftOrderId)
-      : lead.data.shopifyDraftOrderIds || [],
-    shopifyShopDomain: shopDomain || lead.data.shopifyShopDomain || null,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  const existingIds: string[] = lead.data.shopify_draft_order_ids || lead.data.shopifyDraftOrderIds || [];
+  const newIds = shopifyDraftOrderId && !existingIds.includes(shopifyDraftOrderId)
+    ? [...existingIds, shopifyDraftOrderId]
+    : existingIds;
+
+  await supabase
+    .from('leads')
+    .update({
+      stage: 'quoted',
+      shopify_customer_id: shopifyCustomerId || lead.data.shopify_customer_id || lead.data.shopifyCustomerId || null,
+      shopify_draft_order_id: shopifyDraftOrderId,
+      shopify_draft_order_ids: newIds,
+      shopify_shop_domain: shopDomain || lead.data.shopify_shop_domain || lead.data.shopifyShopDomain || null,
+      updated_at: nowIso,
+    })
+    .eq('id', lead.id);
 
   const value = parseMoney(draftOrder.total_price);
   await upsertDealForLead({
@@ -416,7 +460,7 @@ async function processDraftOrderCreate(draftOrder: ShopifyDraftOrder, shopDomain
     notes: lineItemSummary(draftOrder.line_items),
   });
 
-  await addLeadEvent(lead.ref, `Shopify draft order ${draftOrder.name || shopifyDraftOrderId} synced`, {
+  await addLeadEvent(lead, `Shopify draft order ${draftOrder.name || shopifyDraftOrderId} synced`, {
     shopifyDraftOrderId,
     shopifyCustomerId,
     status: draftOrder.status,
@@ -425,7 +469,7 @@ async function processDraftOrderCreate(draftOrder: ShopifyDraftOrder, shopDomain
     shopifyShopDomain: shopDomain,
   });
 
-  return { leadId: lead.ref.id, shopifyCustomerId, shopifyDraftOrderId, action };
+  return { leadId: lead.id, shopifyCustomerId, shopifyDraftOrderId, action };
 }
 
 async function processOrderCreate(order: ShopifyOrder, shopDomain?: string): Promise<WebhookResult> {
@@ -433,6 +477,7 @@ async function processOrderCreate(order: ShopifyOrder, shopDomain?: string): Pro
   const shopifyCustomerId = stringId(order.customer?.id);
   let lead = await findLeadForOrder(order);
   let action = 'linked_order_to_existing_lead';
+  const nowIso = new Date().toISOString();
 
   if (!lead) {
     lead = await createLeadFromInput(createLeadInputFromOrder(order), {
@@ -444,18 +489,24 @@ async function processOrderCreate(order: ShopifyOrder, shopDomain?: string): Pro
     action = 'created_lead_from_order';
   }
 
+  const existingIds: string[] = lead.data.shopify_order_ids || lead.data.shopifyOrderIds || [];
+  const newIds = shopifyOrderId && !existingIds.includes(shopifyOrderId)
+    ? [...existingIds, shopifyOrderId]
+    : existingIds;
+
   const wonRevenue = parseMoney(order.total_price);
-  await lead.ref.set({
-    stage: 'won',
-    shopifyCustomerId: shopifyCustomerId || lead.data.shopifyCustomerId || null,
-    shopifyOrderId,
-    shopifyOrderIds: shopifyOrderId
-      ? admin.firestore.FieldValue.arrayUnion(shopifyOrderId)
-      : lead.data.shopifyOrderIds || [],
-    shopifyShopDomain: shopDomain || lead.data.shopifyShopDomain || null,
-    wonRevenue,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+  await supabase
+    .from('leads')
+    .update({
+      stage: 'won',
+      shopify_customer_id: shopifyCustomerId || lead.data.shopify_customer_id || lead.data.shopifyCustomerId || null,
+      shopify_order_id: shopifyOrderId,
+      shopify_order_ids: newIds,
+      shopify_shop_domain: shopDomain || lead.data.shopify_shop_domain || lead.data.shopifyShopDomain || null,
+      won_revenue: wonRevenue,
+      updated_at: nowIso,
+    })
+    .eq('id', lead.id);
 
   await upsertDealForLead({
     lead,
@@ -467,7 +518,7 @@ async function processOrderCreate(order: ShopifyOrder, shopDomain?: string): Pro
     notes: lineItemSummary(order.line_items),
   });
 
-  await addLeadEvent(lead.ref, `Shopify order ${order.name || shopifyOrderId} marked won`, {
+  await addLeadEvent(lead, `Shopify order ${order.name || shopifyOrderId} marked won`, {
     shopifyOrderId,
     shopifyCustomerId,
     financialStatus: order.financial_status,
@@ -477,7 +528,7 @@ async function processOrderCreate(order: ShopifyOrder, shopDomain?: string): Pro
     shopifyShopDomain: shopDomain,
   });
 
-  return { leadId: lead.ref.id, shopifyCustomerId, shopifyOrderId, action };
+  return { leadId: lead.id, shopifyCustomerId, shopifyOrderId, action };
 }
 
 async function processWebhook(topic: ShopifyWebhookTopic, payload: unknown, shopDomain?: string): Promise<WebhookResult> {
@@ -523,91 +574,120 @@ export const shopifyWebhookHandler = async (req: Request, res: Response): Promis
     return;
   }
 
-  const deliveryRef = webhookId
-    ? db.collection('shopify_webhook_deliveries').doc(webhookId)
-    : db.collection('shopify_webhook_deliveries').doc();
+  const nowIso = new Date().toISOString();
+  const targetDeliveryId = webhookId || `wh_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
   try {
     if (webhookId) {
-      await deliveryRef.create({
+      // Check if already processed or exists
+      const { data: existingDelivery } = await supabase
+        .from('shopify_webhook_deliveries')
+        .select('id')
+        .eq('id', webhookId)
+        .limit(1);
+
+      if (existingDelivery && existingDelivery.length > 0) {
+        res.status(200).json({ success: true, duplicate: true });
+        return;
+      }
+
+      await supabase.from('shopify_webhook_deliveries').insert({
+        id: webhookId,
         source: 'shopify',
         topic,
-        shopDomain: shopDomain || null,
-        eventId: eventId || null,
+        shop_domain: shopDomain || null,
+        event_id: eventId || null,
         status: 'processing',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        created_at: nowIso,
+        updated_at: nowIso,
       });
     }
   } catch (error: any) {
-    if (error.code === 6 || error.code === 'already-exists') {
-      res.status(200).json({ success: true, duplicate: true });
-      return;
-    }
-    throw error;
+    functions.logger.warn('Error checking/creating delivery record:', error);
   }
 
-  let logRef: admin.firestore.DocumentReference | null = null;
+  let logId: string | null = null;
 
   try {
     const payload = parsePayload(req);
     const result = await processWebhook(topic, payload, shopDomain);
 
-    logRef = await db.collection('integrations_log').add({
-      source: 'shopify',
-      topic,
-      payload,
-      status: 'processed',
-      leadId: result.leadId,
-      error: null,
-      metadata: {
-        action: result.action,
-        shopDomain: shopDomain || null,
-        webhookId: webhookId || null,
-        eventId: eventId || null,
-        shopifyCustomerId: result.shopifyCustomerId || null,
-        shopifyDraftOrderId: result.shopifyDraftOrderId || null,
-        shopifyOrderId: result.shopifyOrderId || null,
-        receivedAt: new Date().toISOString(),
-      },
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    const { data: insertedLog } = await supabase
+      .from('integrations_log')
+      .insert({
+        source: 'shopify',
+        event: topic,
+        topic,
+        payload,
+        status: 'processed',
+        lead_id: result.leadId,
+        error: null,
+        metadata: {
+          action: result.action,
+          shopDomain: shopDomain || null,
+          webhookId: webhookId || null,
+          eventId: eventId || null,
+          shopifyCustomerId: result.shopifyCustomerId || null,
+          shopifyDraftOrderId: result.shopifyDraftOrderId || null,
+          shopifyOrderId: result.shopifyOrderId || null,
+          receivedAt: nowIso,
+        },
+        created_at: nowIso,
+      })
+      .select('id')
+      .single();
 
-    await deliveryRef.set({
-      status: 'processed',
-      leadId: result.leadId,
-      logId: logRef.id,
-      result,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
+    if (insertedLog) logId = insertedLog.id;
+
+    await supabase
+      .from('shopify_webhook_deliveries')
+      .update({
+        status: 'processed',
+        processed_at: nowIso,
+        log_id: logId,
+        result,
+        updated_at: nowIso,
+      })
+      .eq('id', targetDeliveryId);
 
     functions.logger.info('Shopify webhook processed', { topic, shopDomain, webhookId, ...result });
-    res.status(200).json({ success: true, logId: logRef.id, ...result });
+    res.status(200).json({ success: true, logId, ...result });
   } catch (error: any) {
     functions.logger.error('Error processing Shopify webhook:', error);
 
-    logRef = await db.collection('integrations_log').add({
-      source: 'shopify',
-      topic,
-      payload: req.body || {},
-      status: 'error',
-      leadId: null,
-      error: error.message || 'Unknown error',
-      metadata: {
-        shopDomain: shopDomain || null,
-        webhookId: webhookId || null,
-        eventId: eventId || null,
-        receivedAt: new Date().toISOString(),
-      },
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    const { data: errorLog } = await supabase
+      .from('integrations_log')
+      .insert({
+        source: 'shopify',
+        event: topic,
+        topic,
+        payload: req.body || {},
+        status: 'error',
+        lead_id: null,
+        error: error.message || 'Unknown error',
+        metadata: {
+          shopDomain: shopDomain || null,
+          webhookId: webhookId || null,
+          eventId: eventId || null,
+          receivedAt: new Date().toISOString(),
+        },
+        created_at: nowIso,
+      })
+      .select('id')
+      .single();
 
-    await deliveryRef.set({
-      status: 'error',
-      logId: logRef.id,
-      error: error.message || 'Unknown error',
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
+    if (errorLog) logId = errorLog.id;
+
+    await supabase
+      .from('shopify_webhook_deliveries')
+      .update({
+        status: 'error',
+        processed_at: nowIso,
+        log_id: logId,
+        error: error.message || 'Unknown error',
+        updated_at: nowIso,
+      })
+      .eq('id', targetDeliveryId);
 
     res.status(500).json({ error: 'Internal server error' });
   }
