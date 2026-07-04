@@ -64,7 +64,7 @@ export function useLeadTasks(leadId?: string): UseLeadTasksResult {
       return taskService.createTask({
         ...data,
         leadId,
-        assignedBy: user.uid,
+        assignedBy: user.id || (user as any).uid,
       });
     },
     [leadId, user]

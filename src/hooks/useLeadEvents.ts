@@ -54,7 +54,7 @@ export function useLeadEvents(leadId?: string): UseLeadEventsResult {
       metadata?: Record<string, unknown>
     ): Promise<string> => {
       if (!leadId) throw new Error('Lead ID required');
-      return eventService.addLeadEvent(leadId, type, description, metadata, user || { uid: 'user' });
+      return eventService.addLeadEvent(leadId, type, description, metadata, { uid: user?.id || (user as any)?.uid || 'user' });
     },
     [leadId, user]
   );

@@ -1,21 +1,16 @@
 // ─────────────────────────────────────────────────────────────
-// Settings Service – Garage Auto Supplies CRM
+// Settings Service – Garage Auto Supplies CRM (Supabase)
 // ─────────────────────────────────────────────────────────────
-import {
-  doc,
-  onSnapshot,
-  setDoc,
-  serverTimestamp,
-  type Unsubscribe,
-  type FirestoreError,
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { supabase } from '../config/supabase';
 import type { AppSettings } from '../types/settings';
 import {
   DEFAULT_BUSINESS_HOURS,
   DEFAULT_SLA_CONFIG,
   PRODUCT_CATEGORIES,
 } from '../lib/constants';
+
+const SETTINGS_TABLE = 'settings';
+const GLOBAL_ID = 'global';
 
 const DEFAULT_SETTINGS: AppSettings = {
   businessHours: DEFAULT_BUSINESS_HOURS,
@@ -43,47 +38,76 @@ export const settingsService = {
    */
   subscribeSettings(
     onData: (settings: AppSettings) => void,
-    onError?: (error: FirestoreError) => void
-  ): Unsubscribe {
-    const docRef = doc(db, 'settings', 'global');
+    onError?: (error: any) => void
+  ): () => void {
+    const fetchAndNotify = async () => {
+      try {
+        const { data, error } = await supabase
+          .from(SETTINGS_TABLE)
+          .select('value')
+          .eq('id', GLOBAL_ID)
+          .single();
 
-    return onSnapshot(
-      docRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data() as Partial<AppSettings>;
+        if (error || !data || !data.value) {
+          onData(DEFAULT_SETTINGS);
+        } else {
+          const val = data.value as Partial<AppSettings>;
           onData({
             ...DEFAULT_SETTINGS,
-            ...data,
-            businessHours: { ...DEFAULT_SETTINGS.businessHours, ...(data.businessHours || {}) },
-            sla: { ...DEFAULT_SETTINGS.sla, ...(data.sla || {}) },
-            scoringWeights: { ...DEFAULT_SETTINGS.scoringWeights, ...(data.scoringWeights || {}) },
-            integrations: { ...DEFAULT_SETTINGS.integrations, ...(data.integrations || {}) },
+            ...val,
+            businessHours: { ...DEFAULT_SETTINGS.businessHours, ...(val.businessHours || {}) },
+            sla: { ...DEFAULT_SETTINGS.sla, ...(val.sla || {}) },
+            scoringWeights: { ...DEFAULT_SETTINGS.scoringWeights, ...(val.scoringWeights || {}) },
+            integrations: { ...DEFAULT_SETTINGS.integrations, ...(val.integrations || {}) },
           });
-        } else {
-          onData(DEFAULT_SETTINGS);
         }
-      },
-      (err) => {
+      } catch (err: any) {
         console.warn('settingsService.subscribeSettings error, fallback to default:', err);
         onData(DEFAULT_SETTINGS);
         if (onError) onError(err);
       }
-    );
+    };
+
+    fetchAndNotify();
+
+    const channel = supabase
+      .channel('table-settings-global')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: SETTINGS_TABLE, filter: `id=eq.${GLOBAL_ID}` },
+        () => {
+          fetchAndNotify();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
    * Update or save global settings.
    */
   async updateSettings(newSettings: Partial<AppSettings>): Promise<void> {
-    const docRef = doc(db, 'settings', 'global');
-    await setDoc(
-      docRef,
-      {
-        ...newSettings,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    const { data } = await supabase
+      .from(SETTINGS_TABLE)
+      .select('value')
+      .eq('id', GLOBAL_ID)
+      .single();
+
+    const currentVal = data?.value || {};
+    const updatedVal = { ...currentVal, ...newSettings };
+
+    const { error } = await supabase.from(SETTINGS_TABLE).upsert({
+      id: GLOBAL_ID,
+      value: updatedVal,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error('updateSettings failed:', error);
+      throw error;
+    }
   },
 };

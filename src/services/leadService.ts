@@ -1,23 +1,12 @@
 // ─────────────────────────────────────────────────────────────
-// Lead Service – Garage Auto Supplies CRM
+// Lead Service – Garage Auto Supplies CRM (Supabase)
 // ─────────────────────────────────────────────────────────────
-import {
-  collection,
-  doc,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  serverTimestamp,
-  type Unsubscribe,
-  type FirestoreError,
-} from 'firebase/firestore';
-import { db, getApiRouteUrl } from '../config/firebase';
+import { supabase, getApiRouteUrl } from '../config/supabase';
 import type { Lead, LeadFormData, LeadStage } from '../types/lead';
-import { normalizeLead } from './leadMapper';
+import { normalizeLead, toSupabaseLead } from './leadMapper';
 
-const LEADS_COLLECTION = 'leads';
+const LEADS_TABLE = 'leads';
+const EVENTS_TABLE = 'lead_events';
 
 export type CreateLeadInput = LeadFormData & {
   assignedTo?: string | null;
@@ -67,22 +56,39 @@ export const leadService = {
    */
   subscribeLeads(
     onData: (leads: Lead[]) => void,
-    onError?: (error: FirestoreError) => void
-  ): Unsubscribe {
-    const q = query(collection(db, LEADS_COLLECTION), orderBy('createdAt', 'desc'));
+    onError?: (error: any) => void
+  ): () => void {
+    const fetchAndNotify = async () => {
+      try {
+        const { data, error } = await supabase
+          .from(LEADS_TABLE)
+          .select('*')
+          .order('created_at', { ascending: false });
 
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const docs = snapshot.docs.map((docSnap) =>
-          normalizeLead(docSnap.data(), docSnap.id)
-        );
+        if (error) throw error;
+        const docs = (data || []).map((row) => normalizeLead(row, row.id));
         onData(docs);
-      },
-      (err) => {
+      } catch (err: any) {
         if (onError) onError(err);
       }
-    );
+    };
+
+    fetchAndNotify();
+
+    const channel = supabase
+      .channel('table-leads-all')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: LEADS_TABLE },
+        () => {
+          fetchAndNotify();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
@@ -91,33 +97,51 @@ export const leadService = {
   subscribeLead(
     leadId: string,
     onData: (lead: Lead | null) => void,
-    onError?: (error: FirestoreError) => void
-  ): Unsubscribe {
+    onError?: (error: any) => void
+  ): () => void {
     if (!leadId) {
       onData(null);
       return () => {};
     }
 
-    const docRef = doc(db, LEADS_COLLECTION, leadId);
+    const fetchAndNotify = async () => {
+      try {
+        const { data, error } = await supabase
+          .from(LEADS_TABLE)
+          .select('*')
+          .eq('id', leadId)
+          .single();
 
-    return onSnapshot(
-      docRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          onData(normalizeLead(snapshot.data(), snapshot.id));
-        } else {
+        if (error || !data) {
           onData(null);
+        } else {
+          onData(normalizeLead(data, data.id));
         }
-      },
-      (err) => {
+      } catch (err: any) {
         if (onError) onError(err);
       }
-    );
+    };
+
+    fetchAndNotify();
+
+    const channel = supabase
+      .channel(`table-leads-single-${leadId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: LEADS_TABLE, filter: `id=eq.${leadId}` },
+        () => {
+          fetchAndNotify();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
-   * Create a new lead through the Cloud Function so scoring, SLA, events,
-   * and auto-task creation stay consistent with Shopify/inbound captures.
+   * Create a new lead. Attempts API route first, then falls back to direct Supabase PostgreSQL insert.
    */
   async createLead(data: CreateLeadInput): Promise<string> {
     const payload = toLeadCapturePayload(data);
@@ -147,18 +171,22 @@ export const leadService = {
       if (apiError.message && (apiError.message.includes('Validation') || apiError.message.includes('validation'))) {
         throw apiError;
       }
-      console.warn('API /leads/create unavailable or failed, falling back to direct Firestore write:', apiError);
+      console.warn('API /leads/create unavailable or failed, falling back to direct Supabase write:', apiError);
     }
 
-    // Direct Firestore fallback when Cloud Functions are not deployed or unreachable
-    const docRef = await addDoc(collection(db, LEADS_COLLECTION), {
+    // Direct Supabase PostgreSQL fallback
+    const leadId = `lead-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const now = new Date().toISOString();
+
+    const leadRow = toSupabaseLead({
+      id: leadId,
       ...payload,
       stage: 'new',
       status: 'new',
       score: 50,
       leadScore: 50,
       tier: 'warm',
-      scoreBreakdown: { budget: 15, category: 15, intent: 10, engagement: 10 },
+      scoreBreakdown: { budgetScore: 15, categoryScore: 15, intentScore: 10, engagementScore: 10 },
       scoreReasons: ['Direct capture fallback (default warm scoring)'],
       slaStatus: 'ok',
       contactedAt: null,
@@ -167,34 +195,49 @@ export const leadService = {
       aiSummary: `Lead interested in ${payload.quantity}x ${payload.productCategory}.`,
       aiNextAction: 'Follow up via phone or email.',
       tags: [payload.productCategory.toLowerCase().replace(/\s+/g, '-'), 'warm', 'manual-fallback'],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    } as any);
+
+    leadRow.created_at = now;
+    leadRow.updated_at = now;
+
+    const { error: insertErr } = await supabase.from(LEADS_TABLE).insert(leadRow);
+    if (insertErr) {
+      console.error('Failed to insert lead into Supabase:', insertErr);
+      throw insertErr;
+    }
 
     try {
-      await addDoc(collection(db, LEADS_COLLECTION, docRef.id, 'events'), {
+      await supabase.from(EVENTS_TABLE).insert({
+        id: `ev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        lead_id: leadId,
         type: 'created',
         description: `New ${payload.formType} lead from ${payload.firstName} ${payload.lastName} (direct fallback)`,
         metadata: { formType: payload.formType, productCategory: payload.productCategory },
-        createdBy: 'system',
-        createdAt: serverTimestamp(),
+        created_at: now,
       });
     } catch (e) {
       console.warn('Failed to create event in fallback:', e);
     }
 
-    return docRef.id;
+    return leadId;
   },
 
   /**
-   * Update an existing lead document.
+   * Update an existing lead document in PostgreSQL.
    */
   async safeUpdate(leadId: string, updates: Record<string, any>): Promise<void> {
-    const docRef = doc(db, LEADS_COLLECTION, leadId);
-    await updateDoc(docRef, {
-      ...updates,
-      updatedAt: serverTimestamp(),
-    });
+    const mappedUpdates = toSupabaseLead(updates as Partial<Lead>);
+    mappedUpdates.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .from(LEADS_TABLE)
+      .update(mappedUpdates)
+      .eq('id', leadId);
+
+    if (error) {
+      console.error(`safeUpdate failed for lead ${leadId}:`, error);
+      throw error;
+    }
   },
 
   /**
@@ -207,12 +250,13 @@ export const leadService = {
     });
 
     try {
-      await addDoc(collection(db, LEADS_COLLECTION, leadId, 'events'), {
+      await supabase.from(EVENTS_TABLE).insert({
+        id: `ev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        lead_id: leadId,
         type: 'stage_changed',
         description: `Stage changed to "${newStage.toUpperCase()}"`,
         metadata: { from: oldStage || 'previous', to: newStage },
-        createdBy: 'user',
-        createdAt: serverTimestamp(),
+        created_at: new Date().toISOString(),
       });
     } catch (e) {
       console.warn('Failed to log stage change event:', e);
@@ -234,12 +278,13 @@ export const leadService = {
     });
 
     try {
-      await addDoc(collection(db, LEADS_COLLECTION, leadId, 'events'), {
+      await supabase.from(EVENTS_TABLE).insert({
+        id: `ev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        lead_id: leadId,
         type: 'call_logged',
         description: 'Lead marked as contacted',
         metadata: { contactedAt: now.toISOString() },
-        createdBy: 'user',
-        createdAt: serverTimestamp(),
+        created_at: now.toISOString(),
       });
     } catch (e) {
       console.warn('Failed to log contacted event:', e);
@@ -256,12 +301,13 @@ export const leadService = {
     });
 
     try {
-      await addDoc(collection(db, LEADS_COLLECTION, leadId, 'events'), {
+      await supabase.from(EVENTS_TABLE).insert({
+        id: `ev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        lead_id: leadId,
         type: 'email_sent',
         description: 'Formal quote sent to customer',
         metadata: { stage: 'quoted' },
-        createdBy: 'user',
-        createdAt: serverTimestamp(),
+        created_at: new Date().toISOString(),
       });
     } catch (e) {
       console.warn('Failed to log quote sent event:', e);
@@ -282,12 +328,13 @@ export const leadService = {
     await this.safeUpdate(leadId, updates);
 
     try {
-      await addDoc(collection(db, LEADS_COLLECTION, leadId, 'events'), {
+      await supabase.from(EVENTS_TABLE).insert({
+        id: `ev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        lead_id: leadId,
         type: 'stage_changed',
         description: `Lead closed WON! Revenue: ${wonRevenue ?? 'Standard'}`,
         metadata: { stage: 'won', wonRevenue },
-        createdBy: 'user',
-        createdAt: serverTimestamp(),
+        created_at: new Date().toISOString(),
       });
     } catch (e) {
       console.warn('Failed to log won event:', e);
@@ -308,12 +355,13 @@ export const leadService = {
     await this.safeUpdate(leadId, updates);
 
     try {
-      await addDoc(collection(db, LEADS_COLLECTION, leadId, 'events'), {
+      await supabase.from(EVENTS_TABLE).insert({
+        id: `ev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        lead_id: leadId,
         type: 'stage_changed',
         description: `Lead closed LOST. Reason: ${lostReason || 'Not specified'}`,
         metadata: { stage: 'lost', lostReason },
-        createdBy: 'user',
-        createdAt: serverTimestamp(),
+        created_at: new Date().toISOString(),
       });
     } catch (e) {
       console.warn('Failed to log lost event:', e);

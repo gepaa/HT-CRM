@@ -1,31 +1,14 @@
 // ─────────────────────────────────────────────────────────────
-// Task Service – Garage Auto Supplies CRM
+// Task Service – Garage Auto Supplies CRM (Supabase)
 // ─────────────────────────────────────────────────────────────
-import {
-  collection,
-  doc,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  serverTimestamp,
-  type Unsubscribe,
-  type FirestoreError,
-  type Timestamp,
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { supabase } from '../config/supabase';
 import type { Task, TaskStatus, TaskPriority } from '../types/crm';
 
-const TASKS_COLLECTION = 'tasks';
+const TASKS_TABLE = 'tasks';
 
 function toDate(val: unknown): Date | null {
   if (!val) return null;
   if (val instanceof Date) return val;
-  if (typeof val === 'object' && 'toDate' in val && typeof (val as Timestamp).toDate === 'function') {
-    return (val as Timestamp).toDate();
-  }
   if (typeof val === 'string' || typeof val === 'number') {
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d;
@@ -35,20 +18,21 @@ function toDate(val: unknown): Date | null {
 
 function normalizeTask(raw: Record<string, any>, docId: string): Task & { dueAt: Date | null } {
   const id = docId || raw.id || 'unknown';
-  const createdAt = toDate(raw.createdAt) ?? new Date();
-  const updatedAt = toDate(raw.updatedAt) ?? new Date();
-  const dueDate = toDate(raw.dueDate) ?? toDate(raw.dueAt);
-  const completedAt = toDate(raw.completedAt);
-  const priority = raw.priority === 'medium' ? 'normal' : (raw.priority || 'normal');
+  const createdAt = toDate(raw.created_at || raw.createdAt) ?? new Date();
+  const updatedAt = toDate(raw.updated_at || raw.updatedAt) ?? new Date();
+  const dueDate = toDate(raw.due_date || raw.dueDate) ?? toDate(raw.due_at || raw.dueAt);
+  const completedAt = toDate(raw.completed_at || raw.completedAt);
+  const rawPriority = raw.priority || 'normal';
+  const priority = rawPriority === 'medium' ? 'normal' : rawPriority;
 
   return {
     ...raw,
     id,
     title: raw.title || 'Untitled Task',
     description: raw.description || '',
-    leadId: raw.leadId || undefined,
-    assignedTo: raw.assignedTo || 'Unassigned',
-    assignedBy: raw.assignedBy || 'system',
+    leadId: raw.lead_id || raw.leadId || undefined,
+    assignedTo: raw.assigned_to || raw.assignedTo || 'Unassigned',
+    assignedBy: raw.assigned_by || raw.assignedBy || 'system',
     status: raw.status || 'pending',
     priority,
     dueDate,
@@ -59,33 +43,74 @@ function normalizeTask(raw: Record<string, any>, docId: string): Task & { dueAt:
   } as Task & { dueAt: Date | null };
 }
 
+function toSupabaseTask(task: Record<string, any>): Record<string, any> {
+  const data: Record<string, any> = {};
+  if (task.id !== undefined) data.id = task.id;
+  if (task.title !== undefined) data.title = task.title;
+  if (task.description !== undefined) data.description = task.description;
+  if (task.leadId !== undefined) data.lead_id = task.leadId;
+  if (task.assignedTo !== undefined) data.assigned_to = task.assignedTo;
+  if (task.assignedBy !== undefined) data.assigned_by = task.assignedBy;
+  if (task.status !== undefined) data.status = task.status;
+  if (task.priority !== undefined) data.priority = task.priority === 'normal' ? 'medium' : task.priority;
+  if (task.dueDate !== undefined || task.dueAt !== undefined) {
+    const d = task.dueDate !== undefined ? task.dueDate : task.dueAt;
+    data.due_date = d instanceof Date ? d.toISOString() : d;
+    data.due_at = data.due_date;
+  }
+  if (task.completedAt !== undefined) {
+    data.completed_at = task.completedAt instanceof Date ? task.completedAt.toISOString() : task.completedAt;
+  }
+  return data;
+}
+
 export const taskService = {
   /**
    * Subscribe to all tasks, optionally filtered.
    */
   subscribeTasks(
     onData: (tasks: (Task & { dueAt: Date | null })[]) => void,
-    onError?: (error: FirestoreError) => void,
+    onError?: (error: any) => void,
     filters?: { status?: TaskStatus; priority?: TaskPriority; assignedTo?: string; leadId?: string }
-  ): Unsubscribe {
-    const q = query(collection(db, TASKS_COLLECTION), orderBy('createdAt', 'desc'));
+  ): () => void {
+    const fetchAndNotify = async () => {
+      try {
+        let query = supabase.from(TASKS_TABLE).select('*').order('created_at', { ascending: false });
 
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        let docs = snapshot.docs.map((d) => normalizeTask(d.data(), d.id));
+        if (filters?.status) query = query.eq('status', filters.status);
+        if (filters?.priority) {
+          const p = filters.priority === 'normal' ? 'medium' : filters.priority;
+          query = query.eq('priority', p);
+        }
+        if (filters?.assignedTo) query = query.eq('assigned_to', filters.assignedTo);
+        if (filters?.leadId) query = query.eq('lead_id', filters.leadId);
 
-        if (filters?.status) docs = docs.filter((t) => t.status === filters.status);
-        if (filters?.priority) docs = docs.filter((t) => t.priority === filters.priority);
-        if (filters?.assignedTo) docs = docs.filter((t) => t.assignedTo === filters.assignedTo);
-        if (filters?.leadId) docs = docs.filter((t) => t.leadId === filters.leadId);
+        const { data, error } = await query;
+        if (error) throw error;
 
+        const docs = (data || []).map((d) => normalizeTask(d, d.id));
         onData(docs);
-      },
-      (err) => {
+      } catch (err: any) {
         if (onError) onError(err);
       }
-    );
+    };
+
+    fetchAndNotify();
+
+    const channel = supabase
+      .channel('table-tasks-all')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: TASKS_TABLE },
+        () => {
+          fetchAndNotify();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
@@ -94,29 +119,45 @@ export const taskService = {
   subscribeLeadTasks(
     leadId: string,
     onData: (tasks: (Task & { dueAt: Date | null })[]) => void,
-    onError?: (error: FirestoreError) => void
-  ): Unsubscribe {
+    onError?: (error: any) => void
+  ): () => void {
     if (!leadId) {
       onData([]);
       return () => {};
     }
 
-    const q = query(
-      collection(db, TASKS_COLLECTION),
-      where('leadId', '==', leadId),
-      orderBy('createdAt', 'desc')
-    );
+    const fetchAndNotify = async () => {
+      try {
+        const { data, error } = await supabase
+          .from(TASKS_TABLE)
+          .select('*')
+          .eq('lead_id', leadId)
+          .order('created_at', { ascending: false });
 
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const docs = snapshot.docs.map((d) => normalizeTask(d.data(), d.id));
+        if (error) throw error;
+        const docs = (data || []).map((d) => normalizeTask(d, d.id));
         onData(docs);
-      },
-      (err) => {
+      } catch (err: any) {
         if (onError) onError(err);
       }
-    );
+    };
+
+    fetchAndNotify();
+
+    const channel = supabase
+      .channel(`table-tasks-lead-${leadId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: TASKS_TABLE, filter: `lead_id=eq.${leadId}` },
+        () => {
+          fetchAndNotify();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
@@ -131,29 +172,47 @@ export const taskService = {
     dueDate?: Date | null;
     assignedBy?: string;
   }): Promise<string> {
-    const docRef = await addDoc(collection(db, TASKS_COLLECTION), {
+    const id = `task-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const now = new Date().toISOString();
+
+    const row = toSupabaseTask({
+      id,
       ...data,
       assignedBy: data.assignedBy || 'system',
-      status: 'pending' as TaskStatus,
+      status: 'pending',
       priority: String(data.priority) === 'medium' ? 'normal' : data.priority,
       dueDate: data.dueDate ?? null,
       dueAt: data.dueDate ?? null,
       completedAt: null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     });
-    return docRef.id;
+
+    row.created_at = now;
+    row.updated_at = now;
+
+    const { error } = await supabase.from(TASKS_TABLE).insert(row);
+    if (error) {
+      console.error('Failed to create task:', error);
+      throw error;
+    }
+    return id;
   },
 
   /**
    * Safe doc updater for tasks.
    */
   async safeUpdate(taskId: string, updates: Record<string, any>): Promise<void> {
-    const docRef = doc(db, TASKS_COLLECTION, taskId);
-    await updateDoc(docRef, {
-      ...updates,
-      updatedAt: serverTimestamp(),
-    });
+    const row = toSupabaseTask(updates);
+    row.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .from(TASKS_TABLE)
+      .update(row)
+      .eq('id', taskId);
+
+    if (error) {
+      console.error(`safeUpdate task ${taskId} failed:`, error);
+      throw error;
+    }
   },
 
   /**
@@ -162,7 +221,7 @@ export const taskService = {
   async updateTaskStatus(taskId: string, status: TaskStatus): Promise<void> {
     const updates: Record<string, any> = { status };
     if (status === 'completed') {
-      updates.completedAt = serverTimestamp();
+      updates.completedAt = new Date();
     } else {
       updates.completedAt = null;
     }

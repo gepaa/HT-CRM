@@ -7,9 +7,8 @@ import { AlertTriangle, CheckCircle2, User, Clock, Phone, Mail, ExternalLink, Ch
 import { formatSLARemaining, getSLAStatus } from '../../lib/sla';
 import { formatCurrency } from '../../lib/formatters';
 import { Badge } from '../../components/ui/Badge';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import type { Lead, LeadStage } from '../../types/lead';
+import { leadService } from '../../services/leadService';
+import type { Lead } from '../../types/lead';
 
 export interface OverdueSLAListProps {
   leads: any[];
@@ -57,15 +56,7 @@ export const OverdueSLAList = ({ leads = [], onMarkContacted }: OverdueSLAListPr
     }
     try {
       setLoadingIds((prev) => ({ ...prev, [leadId]: true }));
-      const leadRef = doc(db, 'leads', leadId);
-      await updateDoc(leadRef, {
-        contactedAt: serverTimestamp(),
-        lastContactedAt: serverTimestamp(),
-        slaStatus: 'ok',
-        isOverdue: false,
-        stage: 'contacted' as LeadStage,
-        updatedAt: serverTimestamp(),
-      });
+      await leadService.markLeadContacted(leadId);
     } catch (err) {
       console.error('Failed to mark overdue lead as contacted:', err);
     } finally {

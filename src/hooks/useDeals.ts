@@ -61,7 +61,7 @@ export function useDeals(): UseDealsResult {
       if (!user) throw new Error('Must be authenticated');
       return dealService.createDeal({
         ...data,
-        assignedTo: user.uid,
+        assignedTo: user.id || (user as any).uid,
       });
     },
     [user]

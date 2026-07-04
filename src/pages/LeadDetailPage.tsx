@@ -17,7 +17,6 @@ import type { LeadStage } from '../types/lead';
 import type { TaskPriority } from '../types/crm';
 import { STAGE_LABELS } from '../lib/constants';
 import { formatDateTime } from '../lib/formatters';
-import { Timestamp } from 'firebase/firestore';
 
 export const LeadDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -135,7 +134,7 @@ export const LeadDetailPage: React.FC = () => {
   };
 
   const stageOptions = Object.entries(STAGE_LABELS).map(([val, lbl]) => ({ value: val, label: lbl }));
-  const createdObj = lead.createdAt instanceof Timestamp ? lead.createdAt.toDate() : new Date(lead.createdAt);
+  const createdObj = lead.createdAt instanceof Date ? lead.createdAt : new Date(lead.createdAt);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">

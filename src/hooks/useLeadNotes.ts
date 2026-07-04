@@ -47,7 +47,7 @@ export function useLeadNotes(leadId?: string): UseLeadNotesResult {
     async (content: string): Promise<string> => {
       if (!leadId) throw new Error('Lead ID required');
       return noteService.addLeadNote(leadId, content, {
-        uid: user?.uid || 'user',
+        uid: user?.id || (user as any)?.uid || 'user',
         displayName: crmUser?.displayName || user?.email || 'Sales Rep',
         email: user?.email,
       });

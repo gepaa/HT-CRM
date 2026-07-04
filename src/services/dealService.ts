@@ -1,23 +1,10 @@
 // ─────────────────────────────────────────────────────────────
-// Deal Service – Garage Auto Supplies CRM
+// Deal Service – Garage Auto Supplies CRM (Supabase)
 // ─────────────────────────────────────────────────────────────
-import {
-  collection,
-  doc,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  serverTimestamp,
-  type Unsubscribe,
-  type FirestoreError,
-  type Timestamp,
-} from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { supabase } from '../config/supabase';
 import type { Deal, DealStage } from '../types/crm';
 
-const DEALS_COLLECTION = 'deals';
+const DEALS_TABLE = 'deals';
 
 const STAGE_PROBABILITY: Record<string, number> = {
   new: 10,
@@ -35,9 +22,6 @@ const STAGE_PROBABILITY: Record<string, number> = {
 function toDate(val: unknown): Date | null {
   if (!val) return null;
   if (val instanceof Date) return val;
-  if (typeof val === 'object' && 'toDate' in val && typeof (val as Timestamp).toDate === 'function') {
-    return (val as Timestamp).toDate();
-  }
   if (typeof val === 'string' || typeof val === 'number') {
     const d = new Date(val);
     return isNaN(d.getTime()) ? null : d;
@@ -47,9 +31,9 @@ function toDate(val: unknown): Date | null {
 
 function normalizeDeal(raw: Record<string, any>, docId: string): Deal {
   const id = docId || raw.id || 'unknown';
-  const createdAt = toDate(raw.createdAt) ?? new Date();
-  const updatedAt = toDate(raw.updatedAt) ?? new Date();
-  const expectedCloseDate = toDate(raw.expectedCloseDate);
+  const createdAt = toDate(raw.created_at || raw.createdAt) ?? new Date();
+  const updatedAt = toDate(raw.updated_at || raw.updatedAt) ?? new Date();
+  const expectedCloseDate = toDate(raw.expected_close_date || raw.expectedCloseDate);
 
   const stage = raw.stage || 'qualification';
   const probability = typeof raw.probability === 'number' ? raw.probability : (STAGE_PROBABILITY[stage] ?? 10);
@@ -58,17 +42,34 @@ function normalizeDeal(raw: Record<string, any>, docId: string): Deal {
     ...raw,
     id,
     title: raw.title || 'Untitled Deal',
-    leadId: raw.leadId || '',
-    contactName: raw.contactName || '',
-    value: typeof raw.value === 'number' ? raw.value : 0,
+    leadId: raw.lead_id || raw.leadId || '',
+    contactName: raw.contact_name || raw.contactName || '',
+    value: typeof raw.value === 'number' ? raw.value : (Number(raw.value) || 0),
     stage,
     probability,
-    assignedTo: raw.assignedTo || 'Unassigned',
+    assignedTo: raw.assigned_to || raw.assignedTo || 'Unassigned',
     expectedCloseDate,
     notes: raw.notes || '',
     createdAt,
     updatedAt,
   } as Deal;
+}
+
+function toSupabaseDeal(deal: Partial<Deal> & Record<string, any>): Record<string, any> {
+  const data: Record<string, any> = {};
+  if (deal.id !== undefined) data.id = deal.id;
+  if (deal.title !== undefined) data.title = deal.title;
+  if (deal.leadId !== undefined) data.lead_id = deal.leadId;
+  if (deal.contactName !== undefined) data.contact_name = deal.contactName;
+  if (deal.value !== undefined) data.value = deal.value;
+  if (deal.stage !== undefined) data.stage = deal.stage;
+  if (deal.probability !== undefined) data.probability = deal.probability;
+  if (deal.assignedTo !== undefined) data.assigned_to = deal.assignedTo;
+  if (deal.expectedCloseDate !== undefined) {
+    data.expected_close_date = deal.expectedCloseDate instanceof Date ? deal.expectedCloseDate.toISOString() : deal.expectedCloseDate;
+  }
+  if (deal.notes !== undefined) data.notes = deal.notes;
+  return data;
 }
 
 export const dealService = {
@@ -77,20 +78,39 @@ export const dealService = {
    */
   subscribeDeals(
     onData: (deals: Deal[]) => void,
-    onError?: (error: FirestoreError) => void
-  ): Unsubscribe {
-    const q = query(collection(db, DEALS_COLLECTION), orderBy('createdAt', 'desc'));
+    onError?: (error: any) => void
+  ): () => void {
+    const fetchAndNotify = async () => {
+      try {
+        const { data, error } = await supabase
+          .from(DEALS_TABLE)
+          .select('*')
+          .order('created_at', { ascending: false });
 
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const docs = snapshot.docs.map((d) => normalizeDeal(d.data(), d.id));
+        if (error) throw error;
+        const docs = (data || []).map((d) => normalizeDeal(d, d.id));
         onData(docs);
-      },
-      (err) => {
+      } catch (err: any) {
         if (onError) onError(err);
       }
-    );
+    };
+
+    fetchAndNotify();
+
+    const channel = supabase
+      .channel('table-deals-all')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: DEALS_TABLE },
+        () => {
+          fetchAndNotify();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   },
 
   /**
@@ -108,27 +128,45 @@ export const dealService = {
   }): Promise<string> {
     const stage = data.stage ?? 'qualification';
     const probability = STAGE_PROBABILITY[stage] ?? 10;
-    const docRef = await addDoc(collection(db, DEALS_COLLECTION), {
+    const id = `deal-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const now = new Date().toISOString();
+
+    const row = toSupabaseDeal({
+      id,
       ...data,
       stage,
       probability,
       assignedTo: data.assignedTo || 'system',
       expectedCloseDate: data.expectedCloseDate ?? null,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    return docRef.id;
+    } as any);
+
+    row.created_at = now;
+    row.updated_at = now;
+
+    const { error } = await supabase.from(DEALS_TABLE).insert(row);
+    if (error) {
+      console.error('Failed to create deal:', error);
+      throw error;
+    }
+    return id;
   },
 
   /**
    * Safe updater for deals.
    */
   async safeUpdate(dealId: string, updates: Record<string, any>): Promise<void> {
-    const docRef = doc(db, DEALS_COLLECTION, dealId);
-    await updateDoc(docRef, {
-      ...updates,
-      updatedAt: serverTimestamp(),
-    });
+    const row = toSupabaseDeal(updates as any);
+    row.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .from(DEALS_TABLE)
+      .update(row)
+      .eq('id', dealId);
+
+    if (error) {
+      console.error(`safeUpdate deal ${dealId} failed:`, error);
+      throw error;
+    }
   },
 
   /**

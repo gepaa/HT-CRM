@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────
-// Auth Context – Garage Auto Supplies CRM
+// Auth Context – Garage Auto Supplies CRM (Supabase)
 // ─────────────────────────────────────────────────────────────
 import React, {
   createContext,
@@ -9,21 +9,15 @@ import React, {
   useMemo,
   useCallback,
 } from 'react';
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  type User,
-} from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import type { User } from '@supabase/supabase-js';
+import { supabase } from '../config/supabase';
 import type { CRMUser } from '../types/crm';
 
 // ── Context shape ────────────────────────────────────────────
 interface AuthContextValue {
-  /** Firebase Auth user */
+  /** Supabase Auth user */
   user: User | null;
-  /** CRM profile from Firestore users/{uid} */
+  /** CRM profile from PostgreSQL users table */
   crmUser: CRMUser | null;
   /** True while auth state or CRM profile is loading */
   loading: boolean;
@@ -45,48 +39,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [crmUser, setCrmUser] = useState<CRMUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Subscribe to Firebase Auth state
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
+  const fetchCrmUser = useCallback(async (supabaseUser: User) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', supabaseUser.id)
+        .single();
 
-      if (firebaseUser) {
-        try {
-          const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (snap.exists()) {
-            const data = snap.data();
-            setCrmUser({
-              ...data,
-              id: snap.id,
-              uid: snap.id,
-              createdAt: data.createdAt?.toDate?.() ?? new Date(),
-              updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
-            } as CRMUser);
-          } else {
-            setCrmUser(null);
-          }
-        } catch (err) {
-          console.error('Failed to fetch CRM user profile:', err);
-          setCrmUser(null);
-        }
+      if (error || !data) {
+        // Fallback profile if row hasn't replicated yet or missing
+        setCrmUser({
+          id: supabaseUser.id,
+          uid: supabaseUser.id,
+          email: supabaseUser.email || '',
+          displayName: supabaseUser.user_metadata?.display_name || supabaseUser.email?.split('@')[0] || 'User',
+          role: (supabaseUser.user_metadata?.role as any) || 'sales_rep',
+          createdAt: new Date(supabaseUser.created_at || Date.now()),
+          updatedAt: new Date(),
+        });
+      } else {
+        setCrmUser({
+          id: data.id || data.uid,
+          uid: data.uid,
+          email: data.email || supabaseUser.email || '',
+          displayName: data.display_name || data.email?.split('@')[0] || 'User',
+          role: data.role || 'sales_rep',
+          avatarUrl: data.avatar_url,
+          phone: data.phone,
+          createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+          updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch CRM user profile:', err);
+      setCrmUser(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        fetchCrmUser(currentUser).finally(() => setLoading(false));
+      } else {
+        setCrmUser(null);
+        setLoading(false);
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        await fetchCrmUser(currentUser);
       } else {
         setCrmUser(null);
       }
-
       setLoading(false);
     });
 
-    return unsubscribe;
-  }, []);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [fetchCrmUser]);
 
   // Auth actions
   const login = useCallback(async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      throw error;
+    }
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
     } catch {
       // ignore offline error
     }

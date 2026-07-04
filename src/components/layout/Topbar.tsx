@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Bell, Zap, Terminal, LogOut, User } from 'lucide-react';
+import { Search, Plus, Bell, Terminal, LogOut, User } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useLeads } from '../../hooks/useLeads';
 import { getInitials } from '../../lib/formatters';
 import { Modal } from '../ui/Modal';
 import { LeadForm } from '../leads/LeadForm';
-import { firebaseRuntime } from '../../config/firebase';
 import { useToast } from '../ui/Toast';
 import type { LeadFormData } from '../../types/lead';
 
@@ -31,24 +30,15 @@ export const Topbar: React.FC<TopbarProps> = ({ title = 'War Room', breadcrumb }
   const overdueTaskCount = leads.filter((l) => l.slaStatus === 'overdue').length;
 
   // Derive user display details
-  const displayName = crmUser?.displayName || user?.displayName || 'Garage Admin';
+  const displayName = crmUser?.displayName || user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Garage Admin';
   const parts = displayName.split(' ');
   const firstName = parts[0] || 'G';
   const lastName = parts.length > 1 ? parts[1] : 'A';
   const initials = getInitials(firstName, lastName);
 
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const envLabel = firebaseRuntime.useEmulators
-    ? 'FIREBASE EMULATORS'
-    : isLocalhost
-    ? 'LOCAL + PROD FIREBASE'
-    : 'PRODUCTION FIREBASE';
-  const envBadge = firebaseRuntime.useEmulators ? (
-    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold tracking-wide select-none">
-      <Zap className="w-3.5 h-3.5 animate-pulse" />
-      <span>{envLabel}</span>
-    </div>
-  ) : (
+  const envLabel = isLocalhost ? 'LOCAL + SUPABASE' : 'SUPABASE CLOUD';
+  const envBadge = (
     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold tracking-wide select-none">
       <Terminal className="w-3.5 h-3.5" />
       <span>{envLabel}</span>

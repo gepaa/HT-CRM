@@ -4,14 +4,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flame, CheckCircle, ExternalLink, Clock, Phone, Mail, User, Sparkles } from 'lucide-react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import { leadService } from '../../services/leadService';
 import { Badge } from '../../components/ui/Badge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { LeadScoreBadge } from '../../components/leads/LeadScoreBadge';
 import { formatSLARemaining, getSLAStatus } from '../../lib/sla';
 import { formatCurrency, formatRelativeTime } from '../../lib/formatters';
-import type { Lead, LeadStage } from '../../types/lead';
+import type { Lead } from '../../types/lead';
 
 export interface HotLeadsListProps {
   leads: any[];
@@ -68,15 +67,7 @@ export const HotLeadsList = ({ leads = [], onMarkContacted }: HotLeadsListProps)
     }
     try {
       setLoadingIds((prev) => ({ ...prev, [leadId]: true }));
-      const leadRef = doc(db, 'leads', leadId);
-      await updateDoc(leadRef, {
-        contactedAt: serverTimestamp(),
-        lastContactedAt: serverTimestamp(),
-        slaStatus: 'ok',
-        isOverdue: false,
-        stage: 'contacted' as LeadStage,
-        updatedAt: serverTimestamp(),
-      });
+      await leadService.markLeadContacted(leadId);
     } catch (err) {
       console.error('Failed to mark lead as contacted:', err);
     } finally {

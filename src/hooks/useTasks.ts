@@ -67,7 +67,7 @@ export function useTasks(filters?: TaskFilters): UseTasksResult {
       if (!user) throw new Error('Must be authenticated');
       return taskService.createTask({
         ...data,
-        assignedBy: user.uid,
+        assignedBy: user.id || (user as any).uid,
       });
     },
     [user]
