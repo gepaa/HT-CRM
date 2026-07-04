@@ -66,7 +66,7 @@ export const noteService = {
     fetchAndNotify();
 
     const channel = supabase
-      .channel(`table-notes-lead-${leadId}`)
+      .channel(`table-notes-lead-${leadId}-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: NOTES_TABLE, filter: `lead_id=eq.${leadId}` },

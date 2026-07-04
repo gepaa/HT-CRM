@@ -98,7 +98,7 @@ export const taskService = {
     fetchAndNotify();
 
     const channel = supabase
-      .channel('table-tasks-all')
+      .channel(`table-tasks-all-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: TASKS_TABLE },
@@ -145,7 +145,7 @@ export const taskService = {
     fetchAndNotify();
 
     const channel = supabase
-      .channel(`table-tasks-lead-${leadId}`)
+      .channel(`table-tasks-lead-${leadId}-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: TASKS_TABLE, filter: `lead_id=eq.${leadId}` },

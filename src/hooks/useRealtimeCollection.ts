@@ -73,7 +73,7 @@ export function useSupabaseRealtime<T = any>(
 
     // Subscribe to Postgres changes for this table
     const channel = supabase
-      .channel(`realtime-hook-${table}`)
+      .channel(`realtime-hook-${table}-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table },

@@ -76,7 +76,7 @@ export const leadService = {
     fetchAndNotify();
 
     const channel = supabase
-      .channel('table-leads-all')
+      .channel(`table-leads-all-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: LEADS_TABLE },
@@ -125,7 +125,7 @@ export const leadService = {
     fetchAndNotify();
 
     const channel = supabase
-      .channel(`table-leads-single-${leadId}`)
+      .channel(`table-leads-single-${leadId}-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: LEADS_TABLE, filter: `id=eq.${leadId}` },

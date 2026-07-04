@@ -62,7 +62,7 @@ export const eventService = {
     fetchAndNotify();
 
     const channel = supabase
-      .channel(`table-events-lead-${leadId}`)
+      .channel(`table-events-lead-${leadId}-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: EVENTS_TABLE, filter: `lead_id=eq.${leadId}` },

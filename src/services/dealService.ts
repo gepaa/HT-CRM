@@ -98,7 +98,7 @@ export const dealService = {
     fetchAndNotify();
 
     const channel = supabase
-      .channel('table-deals-all')
+      .channel(`table-deals-all-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: DEALS_TABLE },

@@ -71,7 +71,7 @@ export const settingsService = {
     fetchAndNotify();
 
     const channel = supabase
-      .channel('table-settings-global')
+      .channel(`table-settings-global-${Math.random().toString(36).substring(2, 9)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: SETTINGS_TABLE, filter: `id=eq.${GLOBAL_ID}` },
