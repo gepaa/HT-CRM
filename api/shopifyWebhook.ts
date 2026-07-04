@@ -1,5 +1,4 @@
-import * as functions from 'firebase-functions';
-import type { Request, Response } from 'firebase-functions/v1';
+
 import { supabase } from '../lib/supabaseAdmin';
 import { calculateSLADeadline } from '../lib/sla';
 import { scoreLead } from '../lib/scoring';
@@ -298,7 +297,7 @@ async function createLeadFromInput(input: LeadFormData, extra: Record<string, un
     .single();
 
   if (insertErr || !inserted) {
-    functions.logger.error('Error inserting Shopify lead into Supabase:', insertErr);
+    console.error('Error inserting Shopify lead into Supabase:', insertErr);
     throw new Error('Failed to insert lead into Supabase');
   }
 
@@ -569,7 +568,7 @@ export const shopifyWebhookHandler = async (req: Request, res: Response): Promis
 
   const isValid = verifyShopifyWebhook(getRawBody(req as { rawBody?: Buffer }), hmac, getWebhookSecret());
   if (!isValid) {
-    functions.logger.warn('Rejected Shopify webhook with invalid HMAC', { topic, shopDomain, webhookId });
+    console.warn('Rejected Shopify webhook with invalid HMAC', { topic, shopDomain, webhookId });
     res.status(401).json({ error: 'Invalid signature' });
     return;
   }
@@ -603,7 +602,7 @@ export const shopifyWebhookHandler = async (req: Request, res: Response): Promis
       });
     }
   } catch (error: any) {
-    functions.logger.warn('Error checking/creating delivery record:', error);
+    console.warn('Error checking/creating delivery record:', error);
   }
 
   let logId: string | null = null;
@@ -650,10 +649,10 @@ export const shopifyWebhookHandler = async (req: Request, res: Response): Promis
       })
       .eq('id', targetDeliveryId);
 
-    functions.logger.info('Shopify webhook processed', { topic, shopDomain, webhookId, ...result });
+    console.log('Shopify webhook processed', { topic, shopDomain, webhookId, ...result });
     res.status(200).json({ success: true, logId, ...result });
   } catch (error: any) {
-    functions.logger.error('Error processing Shopify webhook:', error);
+    console.error('Error processing Shopify webhook:', error);
 
     const { data: errorLog } = await supabase
       .from('integrations_log')
@@ -693,4 +692,6 @@ export const shopifyWebhookHandler = async (req: Request, res: Response): Promis
   }
 };
 
-export const shopifyWebhook = functions.https.onRequest(shopifyWebhookHandler);
+export default async function handler(req: any, res: any) {
+  return shopifyWebhookHandler(req, res);
+}

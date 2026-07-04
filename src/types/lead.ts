@@ -42,7 +42,7 @@ export type SLAStatus = 'ok' | 'warning' | 'overdue';
 /** Inbound form variant */
 export type FormType = 'quote' | 'contact' | 'product_inquiry';
 
-/** Full Lead document stored in Firestore */
+/** Full Lead document stored in Supabase Postgres */
 export interface Lead {
   id: string;
   firstName: string;

@@ -1,237 +1,93 @@
 #!/usr/bin/env tsx
 // ============================================================
-// create-user.ts — Secure User Invitation Script
+// create-user.ts — Secure User Invitation Script (Supabase)
 // ============================================================
-// Creates a Firebase Auth user, assigns a custom role claim,
-// and writes their matching Firestore /users/{uid} profile.
-//
-// Prerequisites:
-//   1. Set GOOGLE_APPLICATION_CREDENTIALS to a service account
-//      key file, OR run this from a machine authenticated with
-//      `firebase login` (Application Default Credentials).
-//
-//   2. Install deps if running outside the project:
-//        npm install firebase-admin
+// Creates a Supabase Auth user and writes their matching Postgres /users profile.
 //
 // Usage:
-//   # Admin user
 //   tsx scripts/create-user.ts --email admin@yourcompany.com --role admin --name "Pablo Admin"
-//
-//   # Sales rep
 //   tsx scripts/create-user.ts --email rep@yourcompany.com --role sales_rep --name "Sarah Jenkins"
-//
-//   # With a specific project (overrides GOOGLE_APPLICATION_CREDENTIALS project)
-//   FIREBASE_PROJECT_ID=your-project-id tsx scripts/create-user.ts --email ...
-//
-// After running, the new user will receive a password-reset email
-// link printed to stdout, which they can use to set their password.
 // ============================================================
+import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
 
-import admin from 'firebase-admin';
-import * as readline from 'readline';
-import * as fs from 'fs';
-import * as path from 'path';
+dotenv.config();
+dotenv.config({ path: '.env.production' });
+dotenv.config({ path: '.env.local' });
 
-// ── Argument Parsing ──────────────────────────────────────────
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://hublaayffajalhnmwpgp.supabase.co';
+const supabaseKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_lGXIZL0MdtgMcus9Vr5yvw_N1iVX5g2';
+
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});
+
 type Role = 'admin' | 'sales_rep' | 'viewer';
 
-function parseArgs(): {
-  email: string;
-  role: Role;
-  name: string;
-  phone?: string;
-  password?: string;
-} {
+function parseArgs(): { email: string; role: Role; name: string; password?: string } {
   const args = process.argv.slice(2);
-  const get = (flag: string): string | undefined => {
-    const idx = args.indexOf(flag);
-    return idx !== -1 ? args[idx + 1] : undefined;
-  };
+  let email = '';
+  let role: Role = 'sales_rep';
+  let name = '';
+  let password = 'TempPassword123!';
 
-  const email = get('--email');
-  const roleRaw = get('--role') ?? 'sales_rep';
-  const name = get('--name') ?? '';
-  const phone = get('--phone');
-  const password = get('--password');
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--email' && args[i + 1]) email = args[++i];
+    else if (args[i] === '--role' && args[i + 1]) role = args[++i] as Role;
+    else if (args[i] === '--name' && args[i + 1]) name = args[++i];
+    else if (args[i] === '--password' && args[i + 1]) password = args[++i];
+  }
 
-  if (!email) {
-    console.error('\n❌ --email is required.\n');
-    console.error('Usage: tsx scripts/create-user.ts --email user@example.com --role admin --name "Full Name" [--password "secret"]\n');
+  if (!email || !name) {
+    console.error('Usage: tsx scripts/create-user.ts --email <email> --role <admin|sales_rep|viewer> --name "<name>" [--password <temp_pw>]');
     process.exit(1);
   }
 
-  const validRoles: Role[] = ['admin', 'sales_rep', 'viewer'];
-  if (!validRoles.includes(roleRaw as Role)) {
-    console.error(`\n❌ Invalid --role "${roleRaw}". Valid values: admin, sales_rep, viewer\n`);
-    process.exit(1);
-  }
-
-  return { email, role: roleRaw as Role, name, phone, password };
+  return { email, role, name, password };
 }
 
-// ── Prompt helper ─────────────────────────────────────────────
-async function confirm(question: string): Promise<boolean> {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(`${question} [y/N] `, (answer) => {
-      rl.close();
-      resolve(answer.trim().toLowerCase() === 'y');
-    });
-  });
-}
+async function main() {
+  const { email, role, name, password } = parseArgs();
 
-// ── Main ──────────────────────────────────────────────────────
-async function main(): Promise<void> {
-  const { email, role, name, phone, password } = parseArgs();
+  console.log(`\n── Creating user in Supabase Auth & Postgres ──`);
+  console.log(`Email: ${email}\nRole:  ${role}\nName:  ${name}\n`);
 
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  HT CRM — Create New User');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`  Email  : ${email}`);
-  console.log(`  Role   : ${role}`);
-  console.log(`  Name   : ${name || '(not set)'}`);
-  if (phone) console.log(`  Phone  : ${phone}`);
-  if (password) console.log(`  Password: [set]`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-
-  const ok = await confirm('Create this user in Firebase Auth + Firestore?');
-  if (!ok) {
-    console.log('Aborted.\n');
-    process.exit(0);
-  }
-
-  // Initialize Admin SDK (uses service account key file, ADC, or GOOGLE_APPLICATION_CREDENTIALS)
-  if (!admin.apps.length) {
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    let initialized = false;
-
-    // Check for service account key file paths
-    const possiblePaths = [
-      process.env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH,
-      path.join(process.cwd(), 'serviceAccountKey.json'),
-      path.join(process.cwd(), 'functions', 'serviceAccountKey.json'),
-      path.join(__dirname, '..', 'serviceAccountKey.json'),
-      path.join(__dirname, '..', 'functions', 'serviceAccountKey.json')
-    ].filter((p): p is string => !!p);
-
-    for (const p of possiblePaths) {
-      const absolutePath = path.resolve(p);
-      if (fs.existsSync(absolutePath)) {
-        try {
-          const serviceAccount = JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
-          });
-          console.log(`ℹ️  Firebase Admin SDK initialized using service account key at: ${absolutePath}`);
-          initialized = true;
-          break;
-        } catch (error: any) {
-          console.warn(`⚠️  Failed to initialize with key at ${absolutePath}:`, error.message ?? error);
-        }
-      }
-    }
-
-    if (!initialized) {
-      admin.initializeApp(projectId ? { projectId } : undefined);
-    }
-  }
-
-  const auth = admin.auth();
-  const db = admin.firestore();
-
-  // ── Step 1: Check if user already exists ──────────────────
-  let existingUid: string | null = null;
-  try {
-    const existing = await auth.getUserByEmail(email);
-    existingUid = existing.uid;
-    console.log(`⚠️  User already exists in Firebase Auth (uid: ${existing.uid})`);
-    const overwrite = await confirm('Update their role and Firestore profile?');
-    if (!overwrite) {
-      console.log('Aborted.\n');
-      process.exit(0);
-    }
-  } catch {
-    // User doesn't exist — good, we'll create them
-  }
-
-  let uid: string;
-
-  if (existingUid) {
-    uid = existingUid;
-    const updateParams: any = {};
-    if (name) updateParams.displayName = name;
-    if (password) updateParams.password = password;
-    if (Object.keys(updateParams).length > 0) {
-      await auth.updateUser(uid, updateParams);
-    }
-    console.log(`✅ Firebase Auth user updated: ${uid}`);
-  } else {
-    // ── Step 2: Create the Firebase Auth user ──────────────
-    const userRecord = await auth.createUser({
-      email,
-      displayName: name || undefined,
-      phoneNumber: phone || undefined,
-      emailVerified: false,
-      disabled: false,
-      password: password || undefined,
-    });
-
-    uid = userRecord.uid;
-    console.log(`\n✅ Firebase Auth user created: ${uid}`);
-  }
-
-  // ── Step 3: Set custom role claim ─────────────────────────
-  // Custom claims are checked by Firestore rules:
-  //   function hasRole(role) { return request.auth.token.role == role; }
-  await auth.setCustomUserClaims(uid, {
-    role,
-    crm: true,
-  });
-  console.log(`✅ Custom claims set: { role: "${role}", crm: true }`);
-
-  // ── Step 4: Write /users/{uid} Firestore profile ──────────
-  const profileData = {
-    uid,
+  const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
     email,
-    displayName: name || email.split('@')[0],
-    role,
-    phone: phone ?? null,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    isActive: true,
-    // Salesrep-specific defaults
-    ...(role === 'sales_rep' && {
-      assignedLeadCount: 0,
-      dealsWon: 0,
-      totalRevenue: 0,
-    }),
-  };
+    password,
+    email_confirm: true,
+    user_metadata: { role, display_name: name },
+  });
 
-  await db.collection('users').doc(uid).set(profileData, { merge: true });
-  console.log(`✅ Firestore /users/${uid} profile written`);
-
-  // ── Step 5: Password Link / Confirmation ──────────────────
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  ✅ User created successfully!\n');
-  console.log(`  UID    : ${uid}`);
-  console.log(`  Email  : ${email}`);
-  console.log(`  Role   : ${role}`);
-  if (password) {
-    console.log(`  Password: Set successfully (direct login enabled).`);
-  } else {
-    const resetLink = await auth.generatePasswordResetLink(email);
-    console.log('\n  🔗 Password Reset Link (send this to the user):');
-    console.log(`  ${resetLink}`);
-    console.log('\n  ⚠️  This link expires in 1 hour.');
+  if (authErr || !authData.user) {
+    console.error('❌ Error creating Supabase Auth user:', authErr?.message || 'Unknown error');
+    process.exit(1);
   }
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
-  console.log('  ℹ️  The user must sign in ONCE after setting their password');
-  console.log('     for the custom role claim to take effect in the frontend.');
-  console.log('     (Firebase ID tokens refresh after ~1 hour automatically.)\n');
+  const uid = authData.user.id;
+  console.log(`✅ Supabase Auth user created with ID: ${uid}`);
+
+  const nowIso = new Date().toISOString();
+  const { error: dbErr } = await supabase.from('users').upsert({
+    id: uid,
+    email,
+    display_name: name,
+    role,
+    status: 'active',
+    created_at: nowIso,
+    updated_at: nowIso,
+  });
+
+  if (dbErr) {
+    console.error('❌ Error inserting into users table:', dbErr.message);
+    process.exit(1);
+  }
+
+  console.log(`✅ Postgres users profile written successfully.`);
+  console.log(`\nUser can login with Email: ${email} | Password: ${password}\n`);
 }
 
-main().catch((err) => {
-  console.error('\n❌ Error creating user:', err.message ?? err);
-  process.exit(1);
-});
+main().catch(console.error);

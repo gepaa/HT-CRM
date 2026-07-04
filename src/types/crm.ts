@@ -2,7 +2,7 @@
 // Shared CRM Types – Garage Auto Supplies CRM
 // ─────────────────────────────────────────────────────────────
 
-/** CRM user profile stored in Firestore users/{uid} */
+/** CRM user profile stored in Supabase Postgres users table */
 export interface CRMUser {
   id: string;
   uid: string;

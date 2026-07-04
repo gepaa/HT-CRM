@@ -1,8 +1,26 @@
 {
   "rewrites": [
     {
+      "source": "/shopify-webhook",
+      "destination": "/api/shopifyWebhook"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/slaChecker",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/slaWarningChecker",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

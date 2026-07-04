@@ -1,5 +1,0 @@
-connectorId: "movie"
-generate:
-  javascriptSdk:
-    outputDir: "../../src/generated/dataconnect"
-    package: "@dataconnect/generated"

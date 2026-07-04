@@ -102,7 +102,7 @@ export const LeadDetailPage: React.FC = () => {
 
   const handleToggleTask = async (taskId: string) => {
     try {
-      // Find task and toggle in firestore
+      // Find task and toggle in Supabase
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
       const newStatus = task.status === 'completed' ? 'pending' : 'completed';

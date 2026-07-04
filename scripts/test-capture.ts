@@ -1,18 +1,10 @@
 import * as dotenv from 'dotenv';
 
 dotenv.config();
+dotenv.config({ path: '.env.local' });
+dotenv.config({ path: '.env.production' });
 
-const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-const functionsRegion = process.env.VITE_FIREBASE_FUNCTIONS_REGION || 'us-central1';
-const FUNCTION_URL = process.env.LEAD_CAPTURE_ENDPOINT || (
-  process.env.VITE_USE_EMULATORS === 'true' && projectId
-    ? `http://127.0.0.1:5001/${projectId}/${functionsRegion}/api/api/leads/create`
-    : ''
-);
-
-if (!FUNCTION_URL) {
-  throw new Error('Set LEAD_CAPTURE_ENDPOINT, or set VITE_USE_EMULATORS=true with VITE_FIREBASE_PROJECT_ID.');
-}
+const FUNCTION_URL = process.env.LEAD_CAPTURE_ENDPOINT || 'http://localhost:3000/api/leads/create';
 
 async function testLeadCapture() {
   console.log(`🧪 Testing Lead Capture API at: ${FUNCTION_URL}`);
@@ -55,7 +47,7 @@ async function testLeadCapture() {
       console.log('⚠️ Unexpected response for hot lead.');
     }
   } catch (err) {
-    console.error('❌ Request failed. Is the Firebase Functions emulator running?', err);
+    console.error('❌ Request failed. Is the dev server running?', err);
   }
 
   // Test Case 2: Bot Honeypot Submission

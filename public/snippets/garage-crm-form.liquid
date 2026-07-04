@@ -6,7 +6,7 @@
   Example usage:
   {% render 'garage-crm-form',
     form_type: 'quote',
-    crm_endpoint: 'https://YOUR_FIREBASE_HOSTING_DOMAIN/api/leads/create'
+    crm_endpoint: 'https://your-domain.vercel.app/api/leads/create'
   %}
 {% endcomment %}
 
@@ -19,15 +19,14 @@
     - draft_orders/create
     - orders/create
 
-  Webhook URL: https://ht-crm-3957c.web.app/shopify-webhook
-  (Alternatively: https://us-central1-ht-crm-3957c.cloudfunctions.net/shopifyWebhook)
+  Webhook URL: https://your-domain.vercel.app/api/shopifyWebhook
 
-  Set SHOPIFY_WEBHOOK_SECRET in Cloud Functions config:
-    firebase functions:secrets:set SHOPIFY_WEBHOOK_SECRET
+  Set SHOPIFY_WEBHOOK_SECRET in Vercel environment variables:
+    SHOPIFY_WEBHOOK_SECRET=your_secret_here
 
   Set CRM Lead Endpoint metafield in Shopify Admin:
     Namespace: gas_crm  |  Key: lead_endpoint
-    Value: https://ht-crm-3957c.web.app/api/leads/create
+    Value: https://your-domain.vercel.app/api/leads/create
   ==============================================================================
 {% endcomment %}
 

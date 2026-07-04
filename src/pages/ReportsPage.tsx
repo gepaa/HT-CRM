@@ -322,7 +322,7 @@ export const ReportsPage: React.FC = () => {
           )}
 
           <div className="pt-4 border-t border-surface-800/60 flex items-center justify-between text-xs text-surface-400">
-            <span>Aggregated from live Firestore lead data.</span>
+            <span>Aggregated from live Supabase Postgres data.</span>
             <span className="text-brand-400 font-bold hover:underline cursor-pointer flex items-center gap-1">
               Export CSV <ArrowUpRight className="w-3.5 h-3.5" />
             </span>

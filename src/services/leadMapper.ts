@@ -187,5 +187,3 @@ export function toSupabaseLead(lead: Partial<Lead>): Record<string, any> {
   return data;
 }
 
-// Backward compatibility alias
-export const toFirestoreLead = toSupabaseLead;
