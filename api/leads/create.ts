@@ -148,6 +148,24 @@ export default async function handler(req: any, res: any) {
 
     const leadId = insertedLeads.id;
 
+    try {
+      await supabase.from('deals').insert({
+        id: `deal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: `${data.company || `${data.firstName} ${data.lastName}`} - ${data.productCategory || 'Equipment Deal'}`,
+        value: estimatedDealValue || (numericProductPrice ? numericProductPrice * data.quantity : 5000),
+        stage: 'new',
+        probability: 10,
+        lead_id: leadId,
+        contact_name: `${data.firstName} ${data.lastName}`.trim() || 'Customer',
+        assigned_to: resolvedAssignee || 'Unassigned',
+        notes: data.projectDetails || null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      });
+    } catch (dealErr) {
+      console.warn('Error inserting deal in api/leads/create:', dealErr);
+    }
+
     await supabase.from('lead_events').insert({
       lead_id: leadId,
       type: 'created',

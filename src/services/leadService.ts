@@ -7,6 +7,66 @@ import { normalizeLead, toSupabaseLead } from './leadMapper';
 
 const LEADS_TABLE = 'leads';
 const EVENTS_TABLE = 'lead_events';
+const DEALS_TABLE = 'deals';
+
+async function syncMissingDealsForLeads(leads: Lead[]): Promise<void> {
+  if (!leads || leads.length === 0) return;
+  try {
+    const { data: deals } = await supabase.from(DEALS_TABLE).select('lead_id');
+    const existingLeadIds = new Set((deals || []).map((d) => d.lead_id));
+    for (const lead of leads) {
+      if (lead.id && !existingLeadIds.has(lead.id)) {
+        const nowIso = new Date().toISOString();
+        const contactName = `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Customer';
+        const title = `${lead.company || contactName} - ${lead.productCategory || 'Equipment Deal'}`;
+        const value = typeof lead.estimatedDealValue === 'number' && !isNaN(lead.estimatedDealValue)
+          ? lead.estimatedDealValue
+          : typeof lead.productPrice === 'number' && !isNaN(lead.productPrice)
+          ? lead.productPrice * (lead.quantity || 1)
+          : 5000;
+        const stage = lead.stage || 'new';
+        const probMap: Record<string, number> = { new: 10, contacted: 15, qualified: 20, quoted: 30, negotiation: 50, won: 100, lost: 0 };
+        const probability = probMap[stage] ?? 10;
+
+        await supabase.from(DEALS_TABLE).insert({
+          id: `deal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          title,
+          value,
+          stage,
+          probability,
+          lead_id: lead.id,
+          contact_name: contactName,
+          assigned_to: lead.assignedTo || 'Unassigned',
+          notes: lead.projectDetails || null,
+          created_at: lead.createdAt instanceof Date ? lead.createdAt.toISOString() : nowIso,
+          updated_at: nowIso,
+        });
+        existingLeadIds.add(lead.id);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to sync missing deals for leads:', err);
+  }
+}
+
+async function syncDealStageFromLead(leadId: string, newStage: string, revenue?: number): Promise<void> {
+  if (!leadId) return;
+  try {
+    const probMap: Record<string, number> = { new: 10, contacted: 15, qualified: 20, quoted: 30, negotiation: 50, won: 100, lost: 0 };
+    const probability = probMap[newStage] ?? 10;
+    const updates: Record<string, any> = {
+      stage: newStage,
+      probability,
+      updated_at: new Date().toISOString(),
+    };
+    if (typeof revenue === 'number' && !isNaN(revenue)) {
+      updates.value = revenue;
+    }
+    await supabase.from(DEALS_TABLE).update(updates).eq('lead_id', leadId);
+  } catch (err) {
+    console.warn('Failed to sync deal stage from lead:', err);
+  }
+}
 
 export type CreateLeadInput = LeadFormData & {
   assignedTo?: string | null;
@@ -68,6 +128,7 @@ export const leadService = {
         if (error) throw error;
         const docs = (data || []).map((row) => normalizeLead(row, row.id));
         onData(docs);
+        void syncMissingDealsForLeads(docs);
       } catch (err: any) {
         if (onError) onError(err);
       }
@@ -207,6 +268,28 @@ export const leadService = {
     }
 
     try {
+      const dealTitle = `${payload.company || `${payload.firstName} ${payload.lastName}`} - ${payload.productCategory || 'Equipment Deal'}`;
+      const dealValue = typeof payload.productPrice === 'number' && !isNaN(payload.productPrice)
+        ? payload.productPrice * (payload.quantity || 1)
+        : (parseInt(String(payload.targetBudget).replace(/[^\d]/g, ''), 10) || 5000);
+      await supabase.from(DEALS_TABLE).insert({
+        id: `deal-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: dealTitle,
+        value: dealValue,
+        stage: 'new',
+        probability: 10,
+        lead_id: leadId,
+        contact_name: `${payload.firstName} ${payload.lastName}`.trim() || 'Customer',
+        assigned_to: payload.assignedTo || 'Unassigned',
+        notes: payload.projectDetails || null,
+        created_at: now,
+        updated_at: now,
+      });
+    } catch (dealErr) {
+      console.warn('Failed to insert deal in createLead fallback:', dealErr);
+    }
+
+    try {
       await supabase.from(EVENTS_TABLE).insert({
         id: `ev-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         lead_id: leadId,
@@ -248,6 +331,7 @@ export const leadService = {
       stage: newStage,
       status: newStage,
     });
+    void syncDealStageFromLead(leadId, newStage);
 
     try {
       await supabase.from(EVENTS_TABLE).insert({
@@ -276,6 +360,7 @@ export const leadService = {
       stage: 'contacted',
       status: 'contacted',
     });
+    void syncDealStageFromLead(leadId, 'contacted');
 
     try {
       await supabase.from(EVENTS_TABLE).insert({
@@ -299,6 +384,7 @@ export const leadService = {
       stage: 'quoted',
       status: 'quoted',
     });
+    void syncDealStageFromLead(leadId, 'quoted');
 
     try {
       await supabase.from(EVENTS_TABLE).insert({
@@ -326,6 +412,7 @@ export const leadService = {
       updates.wonRevenue = wonRevenue;
     }
     await this.safeUpdate(leadId, updates);
+    void syncDealStageFromLead(leadId, 'won', wonRevenue);
 
     try {
       await supabase.from(EVENTS_TABLE).insert({
@@ -366,6 +453,7 @@ export const leadService = {
       updates.lostReason = lostReason;
     }
     await this.safeUpdate(leadId, updates);
+    void syncDealStageFromLead(leadId, 'lost');
 
     try {
       await supabase.from(EVENTS_TABLE).insert({

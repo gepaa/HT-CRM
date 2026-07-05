@@ -19,6 +19,35 @@ const STAGE_PROBABILITY: Record<string, number> = {
   closed_lost: 0,
 };
 
+async function syncLeadStageFromDeal(dealId: string, newStage: string): Promise<void> {
+  if (!dealId || !newStage) return;
+  try {
+    const { data: deal } = await supabase.from(DEALS_TABLE).select('lead_id').eq('id', dealId).single();
+    if (deal && deal.lead_id) {
+      const stageMap: Record<string, string> = {
+        new: 'new',
+        quoted: 'quoted',
+        negotiation: 'negotiation',
+        won: 'won',
+        lost: 'lost',
+        proposal: 'quoted',
+        qualification: 'new',
+        contract: 'negotiation',
+        closed_won: 'won',
+        closed_lost: 'lost',
+      };
+      const targetLeadStage = stageMap[newStage] || newStage;
+      await supabase.from('leads').update({
+        stage: targetLeadStage,
+        status: targetLeadStage,
+        updated_at: new Date().toISOString(),
+      }).eq('id', deal.lead_id);
+    }
+  } catch (err) {
+    console.warn('Failed to sync lead stage from deal:', err);
+  }
+}
+
 function toDate(val: unknown): Date | null {
   if (!val) return null;
   if (val instanceof Date) return val;
@@ -35,7 +64,7 @@ function normalizeDeal(raw: Record<string, any>, docId: string): Deal {
   const updatedAt = toDate(raw.updated_at || raw.updatedAt) ?? new Date();
   const expectedCloseDate = toDate(raw.expected_close_date || raw.expectedCloseDate);
 
-  const stage = raw.stage || 'qualification';
+  const stage = raw.stage || 'new';
   const probability = typeof raw.probability === 'number' ? raw.probability : (STAGE_PROBABILITY[stage] ?? 10);
 
   return {
@@ -126,7 +155,7 @@ export const dealService = {
     notes?: string;
     assignedTo?: string;
   }): Promise<string> {
-    const stage = data.stage ?? 'qualification';
+    const stage = data.stage ?? 'new';
     const probability = STAGE_PROBABILITY[stage] ?? 10;
     const id = `deal-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const now = new Date().toISOString();
@@ -178,6 +207,7 @@ export const dealService = {
       stage: newStage,
       probability,
     });
+    void syncLeadStageFromDeal(dealId, newStage);
   },
 
   /**
@@ -185,5 +215,8 @@ export const dealService = {
    */
   async updateDeal(dealId: string, data: Partial<Deal>): Promise<void> {
     await this.safeUpdate(dealId, data);
+    if (data.stage) {
+      void syncLeadStageFromDeal(dealId, data.stage);
+    }
   },
 };

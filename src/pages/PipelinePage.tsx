@@ -235,7 +235,7 @@ export default function PipelinePage() {
             // Filter deals belonging to this column (support both simple and extended stage names)
             const colDeals = deals.filter((d) => {
               const st = (d.stage || 'new').toLowerCase();
-              if (col.id === 'new') return st === 'new' || st === 'qualification';
+              if (col.id === 'new') return st === 'new' || st === 'qualification' || st === 'contacted' || st === 'qualified';
               if (col.id === 'quoted') return st === 'quoted' || st === 'proposal';
               if (col.id === 'negotiation') return st === 'negotiation' || st === 'contract';
               if (col.id === 'won') return st === 'won' || st === 'closed_won';
