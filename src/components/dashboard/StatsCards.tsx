@@ -100,9 +100,9 @@ export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsPro
   const avgResponseTime = '14m 22s';
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 sm:grid sm:grid-cols-2 lg:grid-cols-4">
       {/* 1. New Leads Today */}
-      <div className="bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
+      <div className="min-w-[80vw] snap-center sm:min-w-0 bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
             New Leads Today
@@ -121,7 +121,7 @@ export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsPro
 
       {/* 2. Hot Leads Not Contacted */}
       <div
-        className={`bg-surface-900 rounded-xl p-4 sm:p-5 shadow-sm transition-all flex flex-col justify-between border ${
+        className={`min-w-[80vw] snap-center sm:min-w-0 bg-surface-900 rounded-xl p-4 sm:p-5 shadow-sm transition-all flex flex-col justify-between border ${
           hotNotContacted > 0
             ? 'border-red-500/80 bg-gradient-to-br from-red-500/10 to-transparent shadow-[0_0_15px_rgba(239,68,68,0.2)]'
             : 'border-surface-800 hover:border-surface-700'
@@ -148,7 +148,7 @@ export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsPro
 
       {/* 3. Overdue SLA Leads */}
       <div
-        className={`bg-surface-900 rounded-xl p-4 sm:p-5 shadow-sm transition-all flex flex-col justify-between border ${
+        className={`min-w-[80vw] snap-center sm:min-w-0 bg-surface-900 rounded-xl p-4 sm:p-5 shadow-sm transition-all flex flex-col justify-between border ${
           overdueSLAs > 0
             ? 'border-red-600 shadow-[0_0_20px_rgba(220,38,38,0.3)] bg-red-950/20'
             : 'border-surface-800 hover:border-surface-700'
@@ -173,7 +173,7 @@ export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsPro
       </div>
 
       {/* 4. Follow-Ups Due Today */}
-      <div className="bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
+      <div className="min-w-[80vw] snap-center sm:min-w-0 bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
             Follow-Ups Due Today
@@ -191,7 +191,7 @@ export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsPro
       </div>
 
       {/* 5. Quote Requests Today */}
-      <div className="bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
+      <div className="min-w-[80vw] snap-center sm:min-w-0 bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
             Quote Requests Today
@@ -209,7 +209,7 @@ export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsPro
       </div>
 
       {/* 6. Open Pipeline Value */}
-      <div className="bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
+      <div className="min-w-[80vw] snap-center sm:min-w-0 bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
             Open Pipeline Value
@@ -227,7 +227,7 @@ export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsPro
       </div>
 
       {/* 7. Won Revenue This Month */}
-      <div className="bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
+      <div className="min-w-[80vw] snap-center sm:min-w-0 bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
             Won Revenue Month
@@ -245,7 +245,7 @@ export const StatsCards = ({ leads = [], tasks = [], deals = [] }: StatsCardsPro
       </div>
 
       {/* 8. Average Response Time */}
-      <div className="bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
+      <div className="min-w-[80vw] snap-center sm:min-w-0 bg-surface-900 border border-surface-800 rounded-xl p-4 sm:p-5 shadow-sm hover:border-surface-700 transition-all flex flex-col justify-between">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
             Avg Response Time

@@ -260,12 +260,12 @@ export const LeadDetailPage: React.FC = () => {
 
           {/* Activity Tabs (Notes / Tasks / Timeline) */}
           <div className="bg-surface-900 border border-surface-800 rounded-xl p-6 shadow-md">
-            <div className="flex items-center gap-4 border-b border-surface-800 pb-4 mb-6">
+            <div className="flex overflow-x-auto snap-x hide-scrollbar items-center gap-4 border-b border-surface-800 pb-4 mb-6">
               {(['notes', 'tasks', 'timeline'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`text-sm font-semibold capitalize pb-2 transition-colors relative ${
+                  className={`snap-start whitespace-nowrap px-1 min-h-[48px] text-sm font-semibold capitalize pb-2 transition-colors relative active:scale-95 ${
                     activeTab === tab
                       ? 'text-brand-400 after:absolute after:bottom-[-17px] after:left-0 after:right-0 after:h-0.5 after:bg-brand-500 font-bold'
                       : 'text-surface-400 hover:text-white'
@@ -302,7 +302,7 @@ export const LeadDetailPage: React.FC = () => {
             <Button
               variant="primary"
               size="sm"
-              className="w-full justify-center"
+              className="w-full justify-center min-h-[48px] active:scale-95"
               loading={actionLoading === 'contacted'}
               disabled={!!lead.contactedAt || actionLoading !== null}
               onClick={handleMarkContacted}
@@ -316,7 +316,7 @@ export const LeadDetailPage: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              className="w-full justify-center"
+              className="w-full justify-center min-h-[48px] active:scale-95"
               loading={actionLoading === 'quote'}
               disabled={lead.stage === 'quoted' || lead.stage === 'won' || lead.stage === 'lost' || actionLoading !== null}
               onClick={handleMarkQuoteSent}
@@ -329,7 +329,7 @@ export const LeadDetailPage: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              className="w-full justify-center text-emerald-400 hover:text-emerald-300"
+              className="w-full justify-center text-emerald-400 hover:text-emerald-300 min-h-[48px] active:scale-95"
               loading={actionLoading === 'won'}
               disabled={lead.stage === 'won' || lead.stage === 'lost' || actionLoading !== null}
               onClick={() => setIsWonModalOpen(true)}
@@ -342,7 +342,7 @@ export const LeadDetailPage: React.FC = () => {
             <Button
               variant="secondary"
               size="sm"
-              className="w-full justify-center text-red-400 hover:text-red-300"
+              className="w-full justify-center text-red-400 hover:text-red-300 min-h-[48px] active:scale-95"
               loading={actionLoading === 'lost'}
               disabled={lead.stage === 'won' || lead.stage === 'lost' || actionLoading !== null}
               onClick={() => setIsLostModalOpen(true)}

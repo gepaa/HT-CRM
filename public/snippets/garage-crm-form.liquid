@@ -34,6 +34,15 @@
 {% assign gas_crm_endpoint = crm_endpoint | default: shop.metafields.gas_crm.lead_endpoint | default: gas_crm_fallback_endpoint %}
 
 <div class="gas-crm-form-wrapper" data-crm-endpoint="{{ gas_crm_endpoint | escape }}" style="max-width: 680px; margin: 0 auto; padding: 32px; background: #0f172a; color: #f8fafc; border-radius: 12px; font-family: system-ui, -apple-system, sans-serif; border: 1px solid #334155;">
+  <style>
+    .gas-crm-grid { display: grid; gap: 16px; margin-bottom: 16px; }
+    .gas-crm-grid-cols-2 { grid-template-columns: 1fr 1fr; }
+    .gas-crm-grid-cols-2-1 { grid-template-columns: 2fr 1fr; }
+    @media (max-width: 600px) {
+      .gas-crm-grid-cols-2, .gas-crm-grid-cols-2-1 { grid-template-columns: 1fr; }
+    }
+  </style>
+
   <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #ffffff;">Request an Expert Equipment Quote</h3>
   <p style="font-size: 14px; color: #94a3b8; margin-bottom: 24px;">
     Authorized dealer pricing, price match guarantee, and freight/liftgate coordination. 
@@ -49,43 +58,43 @@
       <input type="text" id="gas-hp-field" name="honeypot" tabindex="-1" autocomplete="off">
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+    <div class="gas-crm-grid gas-crm-grid-cols-2">
       <div>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">First Name *</label>
-        <input type="text" name="firstName" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+        <input type="text" name="firstName" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
       </div>
       <div>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Last Name *</label>
-        <input type="text" name="lastName" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+        <input type="text" name="lastName" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+    <div class="gas-crm-grid gas-crm-grid-cols-2">
       <div>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Email Address *</label>
-        <input type="email" name="email" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+        <input type="email" name="email" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
       </div>
       <div>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Phone Number (Direct/Cell)</label>
-        <input type="tel" name="phone" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+        <input type="tel" name="phone" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
+    <div class="gas-crm-grid gas-crm-grid-cols-2-1">
       <div>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Company / Shop Name</label>
-        <input type="text" name="company" placeholder="Optional" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+        <input type="text" name="company" placeholder="Optional" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
       </div>
       <div>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Delivery ZIP Code</label>
-        <input type="text" name="deliveryZip" placeholder="e.g. 80202" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+        <input type="text" name="deliveryZip" placeholder="e.g. 80202" style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px;">
+    <div class="gas-crm-grid gas-crm-grid-cols-2-1">
       <div>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Equipment Category *</label>
-        <select name="productCategory" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+        <select name="productCategory" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
           <option value="4-Post Lifts">4-Post Lifts</option>
           <option value="Car Lifts">Car Lifts</option>
           <option value="2-Post Lifts">2-Post Lifts</option>
@@ -107,13 +116,13 @@
       </div>
       <div>
         <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Quantity *</label>
-        <input type="number" name="quantity" min="1" value="1" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+        <input type="number" name="quantity" min="1" value="1" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
       </div>
     </div>
 
     <div style="margin-bottom: 16px;">
       <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Target Equipment Budget *</label>
-      <input type="text" name="targetBudget" placeholder="e.g. $5,000 - $10,000" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box;">
+      <input type="text" name="targetBudget" placeholder="e.g. $5,000 - $10,000" required style="width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; box-sizing: border-box; min-height: 48px;">
     </div>
 
     <div style="margin-bottom: 24px;">

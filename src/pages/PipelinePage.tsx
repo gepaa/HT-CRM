@@ -35,6 +35,7 @@ export default function PipelinePage() {
 
   const [draggedDealId, setDraggedDealId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeMobileStage, setActiveMobileStage] = useState<string>('new');
 
   // New Deal Modal State
   const [title, setTitle] = useState('');
@@ -230,28 +231,47 @@ export default function PipelinePage() {
           <p className="text-sm text-surface-400">Loading pipeline deals…</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start overflow-x-auto pb-4">
-          {KANBAN_COLUMNS.map((col) => {
-            // Filter deals belonging to this column (support both simple and extended stage names)
-            const colDeals = deals.filter((d) => {
-              const st = (d.stage || 'new').toLowerCase();
-              if (col.id === 'new') return st === 'new' || st === 'qualification' || st === 'contacted' || st === 'qualified';
-              if (col.id === 'quoted') return st === 'quoted' || st === 'proposal';
-              if (col.id === 'negotiation') return st === 'negotiation' || st === 'contract';
-              if (col.id === 'won') return st === 'won' || st === 'closed_won';
-              if (col.id === 'lost') return st === 'lost' || st === 'closed_lost';
-              return false;
-            });
-
-            const colValueSum = colDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
-
-            return (
-              <div
+        <div className="flex flex-col h-full">
+          {/* Mobile Tab Selector */}
+          <div className="md:hidden flex overflow-x-auto snap-x gap-2 mb-4 pb-2 border-b border-surface-800 hide-scrollbar">
+            {KANBAN_COLUMNS.map((col) => (
+              <button
                 key={col.id}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, col.id)}
-                className="bg-surface-900/80 border border-surface-800 rounded-xl flex flex-col h-full min-h-[520px] shadow-sm overflow-hidden"
+                onClick={() => setActiveMobileStage(col.id)}
+                className={`flex-shrink-0 snap-start px-4 py-2.5 rounded-lg text-sm font-bold transition-all min-h-[48px] active:scale-95 ${
+                  activeMobileStage === col.id
+                    ? col.color
+                    : 'bg-surface-800 text-surface-400 border border-surface-700'
+                }`}
               >
+                {col.title}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start pb-4">
+            {KANBAN_COLUMNS.map((col) => {
+              // Filter deals belonging to this column (support both simple and extended stage names)
+              const colDeals = deals.filter((d) => {
+                const st = (d.stage || 'new').toLowerCase();
+                if (col.id === 'new') return st === 'new' || st === 'qualification' || st === 'contacted' || st === 'qualified';
+                if (col.id === 'quoted') return st === 'quoted' || st === 'proposal';
+                if (col.id === 'negotiation') return st === 'negotiation' || st === 'contract';
+                if (col.id === 'won') return st === 'won' || st === 'closed_won';
+                if (col.id === 'lost') return st === 'lost' || st === 'closed_lost';
+                return false;
+              });
+
+              const colValueSum = colDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+              const isHiddenOnMobile = activeMobileStage !== col.id;
+
+              return (
+                <div
+                  key={col.id}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, col.id)}
+                  className={`bg-surface-900/80 border border-surface-800 rounded-xl flex flex-col h-full md:min-h-[520px] shadow-sm overflow-hidden ${isHiddenOnMobile ? 'hidden md:flex' : 'flex'}`}
+                >
                 {/* Column Header */}
                 <div className={`p-4 border-b border-surface-800/80 flex flex-col gap-1.5 ${col.color.split(' ')[1]}`}>
                   <div className="flex items-center justify-between">

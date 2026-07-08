@@ -637,15 +637,24 @@ export const LeadsPage: React.FC = () => {
                   <div className="text-xs text-surface-400">Follow-up: {followUp ? formatDateTime(followUp) : 'Not scheduled'} · Rep: {lead.assignedTo || 'Unassigned'}</div>
                 </div>
 
-                <div className="mt-4 flex items-center justify-between gap-2 border-t border-surface-800 pt-3" onClick={stopRowClick}>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => handleMarkContacted([lead.id])}><CheckCircle2 className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="secondary" onClick={() => handleCreateTask([lead.id])}><ClipboardPlus className="h-4 w-4" /></Button>
+                <div className="mt-4 flex flex-col gap-2 border-t border-surface-800 pt-3" onClick={stopRowClick}>
+                  <div className="grid grid-cols-2 gap-2">
+                    {lead.phone ? (
+                      <a href={`tel:${lead.phone}`} className="flex items-center justify-center gap-2 w-full min-h-[48px] rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-200 font-semibold text-sm transition-colors active:scale-95">
+                        <Phone className="h-4 w-4" />
+                        <span>Call</span>
+                      </a>
+                    ) : (
+                      <a href={`mailto:${lead.email}`} className="flex items-center justify-center gap-2 w-full min-h-[48px] rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-200 font-semibold text-sm transition-colors active:scale-95">
+                        <Mail className="h-4 w-4" />
+                        <span>Email</span>
+                      </a>
+                    )}
+                    <button onClick={() => navigate(`/leads/${lead.id}`)} className="flex items-center justify-center gap-2 w-full min-h-[48px] rounded-lg bg-brand-600 hover:bg-brand-500 text-white font-semibold text-sm transition-colors active:scale-95">
+                      <span>Open Lead</span>
+                      <ExternalLink className="h-4 w-4" />
+                    </button>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/leads/${lead.id}`)}>
-                    <span>Open</span>
-                    <ExternalLink className="h-4 w-4" />
-                  </Button>
                 </div>
               </div>
             );

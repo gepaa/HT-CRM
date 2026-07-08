@@ -247,7 +247,7 @@ export default function SettingsPage() {
                   step="5"
                   value={hotMinutes}
                   onChange={(e) => setHotMinutes(Number(e.target.value))}
-                  className="w-24 px-3 py-1.5 bg-surface-900 border border-surface-700 rounded-lg text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                  className="w-24 px-3 py-1.5 bg-surface-900 border border-surface-700 rounded-lg text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[48px]"
                 />
                 <span className="text-sm text-surface-300 font-medium">Minutes (30m default)</span>
               </div>
@@ -269,7 +269,7 @@ export default function SettingsPage() {
                   step="60"
                   value={warmMinutes}
                   onChange={(e) => setWarmMinutes(Number(e.target.value))}
-                  className="w-24 px-3 py-1.5 bg-surface-900 border border-surface-700 rounded-lg text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-24 px-3 py-1.5 bg-surface-900 border border-surface-700 rounded-lg text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-500 min-h-[48px]"
                 />
                 <span className="text-sm text-surface-300 font-medium">Minutes (24h = 1440m)</span>
               </div>
@@ -291,7 +291,7 @@ export default function SettingsPage() {
                   step="60"
                   value={coldMinutes}
                   onChange={(e) => setColdMinutes(Number(e.target.value))}
-                  className="w-24 px-3 py-1.5 bg-surface-900 border border-surface-700 rounded-lg text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-24 px-3 py-1.5 bg-surface-900 border border-surface-700 rounded-lg text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[48px]"
                 />
                 <span className="text-sm text-surface-300 font-medium">Minutes (8h = 480m)</span>
               </div>
@@ -301,7 +301,7 @@ export default function SettingsPage() {
           <div className="flex justify-end pt-2">
             <button
               type="submit"
-              className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-2 min-h-[48px] active:scale-95"
             >
               <Save className="w-4 h-4" />
               <span>Save SLA Configuration</span>
