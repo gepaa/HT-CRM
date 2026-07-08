@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // Vercel Serverless Endpoint: POST /api/ai/gemini
 // ─────────────────────────────────────────────────────────────
-import { analyzeLeadWithGemini, draftQuoteEmailWithGemini } from '../lib/gemini';
+import { analyzeLeadWithGemini, draftQuoteEmailWithGemini } from '../_lib/gemini';
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');

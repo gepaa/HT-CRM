@@ -1,4 +1,4 @@
-import { LeadFormData, LeadScoreBreakdown, LeadTier } from '../types/lead';
+import { LeadFormData, LeadScoreBreakdown, LeadTier } from '../_types/lead';
 
 const CATEGORY_TIERS: Record<string, number> = {
   'Car Lifts': 1, '2-Post Lifts': 1, '4-Post Lifts': 1,

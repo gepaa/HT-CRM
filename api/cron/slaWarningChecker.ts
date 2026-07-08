@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // Vercel Serverless Cron: GET /api/cron/slaWarningChecker
 // ─────────────────────────────────────────────────────────────
-import { supabase } from '../../lib/supabaseAdmin';
+import { supabase } from '../_lib/supabaseAdmin';
 
 export default async function handler(req: any, res: any) {
   const now = new Date();

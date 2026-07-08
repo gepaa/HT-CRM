@@ -1,12 +1,12 @@
 // ─────────────────────────────────────────────────────────────
 // Vercel Serverless Endpoint: POST /api/leads/create
 // ─────────────────────────────────────────────────────────────
-import { supabase } from '../lib/supabaseAdmin';
-import { leadFormDataSchema } from '../lib/validation';
-import { scoreLead } from '../lib/scoring';
-import { calculateSLADeadline } from '../lib/sla';
-import { getAutoAssignee } from '../lib/autoAssign';
-import { analyzeLeadWithGemini } from '../lib/gemini';
+import { supabase } from '../_lib/supabaseAdmin';
+import { leadFormDataSchema } from '../_lib/validation';
+import { scoreLead } from '../_lib/scoring';
+import { calculateSLADeadline } from '../_lib/sla';
+import { getAutoAssignee } from '../_lib/autoAssign';
+import { analyzeLeadWithGemini } from '../_lib/gemini';
 
 export default async function handler(req: any, res: any) {
   // CORS Headers

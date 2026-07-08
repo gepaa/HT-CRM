@@ -3,7 +3,7 @@ import {
   getDay, differenceInMinutes, startOfDay, format,
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
-import { LeadTier } from '../types/lead';
+import { LeadTier } from '../_types/lead';
 
 const TIMEZONE = 'America/New_York';
 

@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // Vercel Serverless Endpoint: POST /api/google/uploadConversion
 // ─────────────────────────────────────────────────────────────
-import { supabase } from '../lib/supabaseAdmin';
+import { supabase } from '../_lib/supabaseAdmin';
 
 function formatGoogleAdsDateTime(date: Date): string {
   const pad = (num: number) => String(num).padStart(2, '0');

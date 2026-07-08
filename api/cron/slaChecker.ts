@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // Vercel Serverless Cron: GET /api/cron/slaChecker
 // ─────────────────────────────────────────────────────────────
-import { supabase } from '../../lib/supabaseAdmin';
+import { supabase } from '../_lib/supabaseAdmin';
 
 export default async function handler(req: any, res: any) {
   const nowIso = new Date().toISOString();

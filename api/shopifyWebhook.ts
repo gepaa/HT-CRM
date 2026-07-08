@@ -1,16 +1,16 @@
 
-import { supabase } from '../lib/supabaseAdmin';
-import { calculateSLADeadline } from '../lib/sla';
-import { scoreLead } from '../lib/scoring';
-import { verifyShopifyWebhook } from '../lib/shopify';
-import { getAutoAssignee } from '../lib/autoAssign';
+import { supabase } from './_lib/supabaseAdmin';
+import { calculateSLADeadline } from './_lib/sla';
+import { scoreLead } from './_lib/scoring';
+import { verifyShopifyWebhook } from './_lib/shopify';
+import { getAutoAssignee } from './_lib/autoAssign';
 import {
   ShopifyCustomer,
   ShopifyDraftOrder,
   ShopifyOrder,
   ShopifyWebhookTopic,
-} from '../types/shopify';
-import { LeadFormData } from '../types/lead';
+} from './_types/shopify';
+import { LeadFormData } from './_types/lead';
 
 type LeadMatch = {
   id: string;
@@ -32,7 +32,7 @@ const SHOPIFY_TOPICS: ShopifyWebhookTopic[] = [
 ];
 
 function getWebhookSecret(): string | undefined {
-  return process.env.SHOPIFY_WEBHOOK_SECRET || functions.config().shopify?.webhook_secret;
+  return process.env.SHOPIFY_WEBHOOK_SECRET;
 }
 
 function headerValue(value: string | string[] | undefined): string | undefined {
@@ -549,7 +549,7 @@ async function processWebhook(topic: ShopifyWebhookTopic, payload: unknown, shop
  * Handles Shopify customers/create, draft_orders/create, and orders/create.
  * Verifies X-Shopify-Hmac-SHA256 against SHOPIFY_WEBHOOK_SECRET before parsing.
  */
-export const shopifyWebhookHandler = async (req: Request, res: Response): Promise<void> => {
+export const shopifyWebhookHandler = async (req: any, res: any): Promise<void> => {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
     return;

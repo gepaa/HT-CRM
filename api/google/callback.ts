@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // Vercel Serverless Endpoint: GET /api/google/callback
 // ─────────────────────────────────────────────────────────────
-import { supabase } from '../lib/supabaseAdmin';
+import { supabase } from '../_lib/supabaseAdmin';
 
 export default async function handler(req: any, res: any) {
   const host = req.headers.host || 'localhost:5173';
